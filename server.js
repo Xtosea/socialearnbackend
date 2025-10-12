@@ -17,9 +17,28 @@ import historyRoutes from "./routes/historyRoutes.js";
 dotenv.config();
 const app = express();
 
+// Allowed origins (for both Express and Socket.IO)
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://socialmediaboosts.vercel.app",
+];
+
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `CORS policy: Origin ${origin} not allowed`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(morgan("dev"));
 
 // Connect Database
@@ -36,7 +55,11 @@ app.use("/api/history", historyRoutes);
 // Create HTTP server & Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "http://localhost:3000", methods: ["GET", "POST"] },
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
 });
 
 // Make io accessible in routes/controllers
