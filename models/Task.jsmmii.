@@ -1,0 +1,27 @@
+// models/Task.js
+import mongoose from "mongoose";
+
+const taskSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    type: { type: String, enum: ["video", "social"], default: "video" },
+    platform: {
+      type: String,
+      enum: ["youtube", "tiktok", "facebook", "instagram", "twitter"],
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+    duration: { type: Number, default: 30 },
+    watches: { type: Number, default: 0 },
+    points: { type: Number, required: true },
+    fund: { type: Number, default: 0 }, // total reward pool
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    completedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    promoted: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model("Task", taskSchema);

@@ -1,0 +1,116 @@
+// routes/taskRoutes.js
+import express from "express";
+import auth from "../middleware/auth.js";
+import Task from "../models/Task.js";
+import User from "../models/User.js";
+import PromotionSettings from "../models/PromotionSettings.js";
+import {
+  addVideoTask,
+  startWatch,
+  completeWatch,
+  getVideoTasks,
+  getSocialTasks,
+  getPromotedTasksByPlatform,
+  completeSocialAction
+} from "../controllers/taskController.js";
+
+const router = express.Router();
+
+// ---------------------------
+// Generic fetch (with filters)
+// ---------------------------
+router.get("/", async (req, res) => {
+  try {
+    const { platform, type, promoted, status } = req.query;
+    const query = {};
+    if (platform) query.platform = platform.toLowerCase();
+    if (type) query.type = type;
+    if (promoted) query.promoted = promoted === "true";
+    if (status) query.status = status;
+
+    const tasks = await Task.find(query).sort({ createdAt: -1 });
+    res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: "Error fetching tasks" });
+  }
+});
+
+// ---------------------------
+// Video
+// ---------------------------
+router.get("/video", auth, getVideoTasks);
+router.post("/video", auth, addVideoTask);
+
+// ---------------------------
+// Social
+// ---------------------------
+router.get("/social", auth, getSocialTasks);
+
+// ---------------------------
+// Promoted tasks
+// ---------------------------
+// Example: /api/tasks/promoted/watch/youtube
+router.get("/promoted/watch/:platform", auth, getPromotedTasksByPlatform);
+
+// ---------------------------
+// Promotion costs
+// ---------------------------
+router.get("/promoted-costs", auth, async (req, res) => {
+  try {
+    let settings = await PromotionSettings.findOne();
+    if (!settings) {
+      settings = await PromotionSettings.create({
+        globalCost: 50,
+        platformCosts: {},
+        actionCosts: {},
+      });
+    }
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ---------------------------
+// Watch flow
+// ---------------------------
+router.post("/watch/:taskId/start", auth, startWatch);
+router.post("/watch/:taskId/complete", auth, completeWatch);
+
+// Complete social action (like/share/comment)
+router.post("/social/:taskId/complete", auth, completeSocialAction);
+
+// ---------------------------
+// Promote a task
+// ---------------------------
+router.post("/promote", auth, async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (task.promoted) return res.status(400).json({ message: "Task already promoted" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    let settings = await PromotionSettings.findOne();
+    if (!settings) settings = await PromotionSettings.create({});
+    const cost = settings.globalCost || 50;
+
+    if (user.points < cost) return res.status(400).json({ message: "Not enough points" });
+
+    user.points -= cost;
+    await user.save();
+
+    task.promoted = true;
+    await task.save();
+
+    res.json({ message: "Task promoted successfully", remainingPoints: user.points });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+export default router;

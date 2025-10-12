@@ -1,0 +1,266 @@
+// controllers/taskController.js
+import Task from "../models/Task.js";
+import User from "../models/User.js";
+import PromotionSettings from "../models/PromotionSettings.js";
+import { getEmbedUrl } from "../utils/embedUrl.js"; // ✅ helper to normalize URLs
+
+// ---------------------------
+// Helper: error response
+// ---------------------------
+const serverError = (res, err, msg = "Server error") => {
+  console.error(err);
+  res.status(500).json({
+    message: msg,
+    ...(process.env.NODE_ENV === "development" && { error: err.message }),
+  });
+};
+
+// ---------------------------
+// Video Tasks
+// ---------------------------
+export const addVideoTask = async (req, res) => {
+  try {
+    let { url, platform, duration, points, fund, promoted } = req.body;
+    const userId = req.user.id;
+
+    if (!url || !platform || !duration || !points || !fund) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // ✅ normalize platform
+    platform = platform.toLowerCase().trim();
+
+    // ✅ convert URL into embeddable format
+    url = getEmbedUrl(url, platform);
+
+    const task = await Task.create({
+      url,
+      type: "video",
+      platform,
+      duration,
+      points,
+      fund,
+      promoted: promoted || false,
+      status: "active",
+      createdBy: userId,
+    });
+
+    res.status(201).json(task);
+  } catch (err) {
+    serverError(res, err, "Failed to add video task");
+  }
+};
+
+export const startWatch = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    await Task.findByIdAndUpdate(taskId, {
+      $addToSet: { startedBy: req.user.id },
+    });
+    res.json({ message: "Watch started" });
+  } catch (err) {
+    serverError(res, err, "Failed to start watch");
+  }
+};
+
+export const completeWatch = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    if (task.completedBy.includes(req.user.id)) {
+      return res.status(400).json({ message: "Already completed" });
+    }
+
+    // ✅ update task
+    await Task.findByIdAndUpdate(taskId, {
+      $addToSet: { completedBy: req.user.id },
+      $inc: { watches: 1 },
+    });
+
+    // ✅ reward user
+    await User.findByIdAndUpdate(req.user.id, {
+      $inc: { points: task.points },
+    });
+
+    res.json({ message: "Watch completed", points: task.points });
+  } catch (err) {
+    serverError(res, err, "Failed to complete watch");
+  }
+};
+
+export const getVideoTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({ type: "video", status: "active" });
+    res.json(tasks);
+  } catch (err) {
+    serverError(res, err, "Failed to fetch video tasks");
+  }
+};
+
+// ---------------------------
+// Social Tasks
+// ---------------------------
+export const addSocialTask = async (req, res) => {
+  try {
+    const { url, platform, type, requiredActions, points, fund } = req.body;
+    const userId = req.user.id;
+
+    if (!url || !platform || !type || !points || !fund) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const task = await Task.create({
+      url,
+      type, // like/comment/share/follow
+      platform,
+      requiredActions: requiredActions || 0,
+      points,
+      fund,
+      createdBy: userId,
+      status: "active",
+    });
+
+    res.status(201).json(task);
+  } catch (err) {
+    serverError(res, err, "Failed to add social task");
+  }
+};
+
+export const getSocialTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({
+      type: { $in: ["like", "comment", "share", "follow"] },
+      status: "active",
+    });
+    res.json(tasks);
+  } catch (err) {
+    serverError(res, err, "Failed to fetch social tasks");
+  }
+};
+
+// ---------------------------
+// Action Tasks
+// ---------------------------
+export const addActionTask = async (req, res) => {
+  try {
+    const { url, platform, type, points, fund } = req.body;
+    const userId = req.user.id;
+
+    if (!url || !platform || !type || !points || !fund) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const task = await Task.create({
+      url,
+      type: "action",
+      platform,
+      points,
+      fund,
+      createdBy: userId,
+      status: "active",
+    });
+
+    res.status(201).json(task);
+  } catch (err) {
+    serverError(res, err, "Failed to add action task");
+  }
+};
+
+export const verifyAction = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    if (task.completedBy.includes(req.user.id)) {
+      return res.status(400).json({ message: "Already completed" });
+    }
+
+    await Task.findByIdAndUpdate(taskId, {
+      $addToSet: { completedBy: req.user.id },
+    });
+    await User.findByIdAndUpdate(req.user.id, {
+      $inc: { points: task.points },
+    });
+
+    res.json({ message: "Action verified", points: task.points });
+  } catch (err) {
+    serverError(res, err, "Failed to verify action");
+  }
+};
+
+// ---------------------------
+// Generic Task Completion
+// ---------------------------
+export const completeTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    if (task.completedBy.includes(req.user.id)) {
+      return res.status(400).json({ message: "Already completed" });
+    }
+
+    await Task.findByIdAndUpdate(taskId, {
+      $addToSet: { completedBy: req.user.id },
+    });
+    await User.findByIdAndUpdate(req.user.id, {
+      $inc: { points: task.points },
+    });
+
+    res.json({ message: "Task completed", points: task.points });
+  } catch (err) {
+    serverError(res, err, "Failed to complete task");
+  }
+};
+
+// =========================
+// Get promoted tasks by platform
+// =========================
+export const getPromotedTasksByPlatform = async (req, res) => {
+  try {
+    const { platform } = req.params;
+    if (!platform) {
+      return res.status(400).json({ message: "Platform is required" });
+    }
+
+    const tasks = await Task.find({
+      type: "video",
+      platform: platform.toLowerCase(),
+      promoted: true,
+      status: "active",
+    }).sort({ createdAt: -1 });
+
+    // ✅ only show if watch quota not yet reached
+    const availableTasks = tasks.filter((task) => {
+      const maxWatches = Math.floor(task.fund / task.points);
+      return task.watches < maxWatches;
+    });
+
+    res.json({ tasks: availableTasks });
+  } catch (err) {
+    serverError(res, err, "Failed to fetch promoted tasks");
+  }
+};
+
+// =========================
+// Promotion Costs
+// =========================
+export const getPromotionCosts = async (req, res) => {
+  try {
+    let settings = await PromotionSettings.findOne();
+    if (!settings) {
+      settings = await PromotionSettings.create({
+        globalCost: 50,
+        platformCosts: {},
+        actionCosts: {},
+      });
+    }
+    res.json(settings);
+  } catch (err) {
+    serverError(res, err, "Failed to fetch promotion costs");
+  }
+};

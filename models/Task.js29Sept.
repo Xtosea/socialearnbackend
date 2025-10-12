@@ -1,0 +1,44 @@
+import mongoose from "mongoose";
+
+const taskSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+
+    // task type (video or social)
+    type: {
+      type: String,
+      enum: ["video", "like", "comment", "share", "follow"],
+      required: true,
+    },
+
+platform: {
+  type: String,
+  enum: ["youtube", "tiktok", "facebook", "instagram", "twitter"],
+  required: true,
+  lowercase: true, // 👈 force lowercase
+  trim: true,      // 👈 cleanup spaces too
+},
+
+    // Only for video tasks
+    duration: { type: Number }, // seconds
+    watches: { type: Number, default: 0 },
+
+    // Only for social tasks
+    requiredActions: { type: Number, default: 0 }, // e.g. 10 likes required
+
+    // Reward system
+    points: { type: Number, required: true, min: 1 }, // reward per action/view
+    fund: { type: Number, default: 0 }, // total reward pool
+
+    // Ownership
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    completedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // Meta
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    promoted: { type: Boolean, default: true},
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model("Task", taskSchema);

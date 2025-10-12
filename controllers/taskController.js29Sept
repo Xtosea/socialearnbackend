@@ -1,0 +1,429 @@
+// controllers/taskController.js
+import Task from "../models/Task.js";
+import User from "../models/User.js";
+import PromotionSettings from "../models/PromotionSettings.js";
+import History from "../models/HistoryLog.js";
+
+
+// ===============================
+// Helper: create history log
+// ===============================
+const logHistory = async ({ user, taskType, taskId, amount, description, metadata = {} }) => {
+  try {
+    await History.create({
+      user,
+      taskType,
+      taskId,
+      amount,
+      description,
+      metadata,
+    });
+  } catch (err) {
+    console.error("History log error:", err.message);
+  }
+};
+
+// =========================
+// Create a new Video Task
+// =========================
+export const addVideoTask = async (req, res) => {
+  try {
+    let { url, duration, platform, pointsPerView, totalPointsFund, promoted } = req.body;
+    const userId = req.user.id;
+
+    if (!url || !duration || !pointsPerView || !totalPointsFund || !platform) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // 🔥 Normalize platform
+    platform = platform.toLowerCase().trim();
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.points < totalPointsFund) {
+      return res.status(400).json({ message: "Not enough points to fund this task" });
+    }
+
+    // Deduct user points
+    user.points -= totalPointsFund;
+    await user.save();
+    await addHistory(user._id, "debit", totalPointsFund, "Created video task");
+
+    // Create task
+    const task = new Task({
+      url,
+      type: "video",
+      platform,                // normalized lowercase
+      duration,
+      points: pointsPerView,   // reward per view
+      fund: totalPointsFund,   // total points pool
+      createdBy: user._id,
+      status: "active",
+      promoted: !!promoted,    // ✅ allow promoted flag
+    });
+
+    await task.save();
+    res.status(201).json({ message: "Video task created", task });
+  } catch (err) {
+    console.error("Error adding video task:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Start Watching a Video Task
+// =========================
+export const startWatch = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (task.type !== "video") {
+      return res.status(400).json({ message: "Not a video task" });
+    }
+
+    if (!task.startedBy) task.startedBy = [];
+    if (!task.startedBy.includes(userId)) {
+      task.startedBy.push(userId);
+      await task.save();
+    }
+
+    res.json({ message: "Watch started", taskId });
+  } catch (err) {
+    console.error("Error starting watch:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Complete Watching a Video Task
+// =========================
+export const completeWatch = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (task.type !== "video") {
+      return res.status(400).json({ message: "Not a video task" });
+    }
+
+    if (task.completedBy.includes(userId)) {
+      return res.status(400).json({ message: "Already completed by this user" });
+    }
+    if (task.fund < task.points) {
+      return res.status(400).json({ message: "Task has no rewards left" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.points += task.points;
+    await user.save();
+    await addHistory(user._id, "credit", task.points, "Completed video watch");
+
+    task.fund -= task.points;
+    task.completedBy.push(user._id);
+    await task.save();
+
+    res.json({
+      message: "Watch completed successfully",
+      earned: task.points,
+      userPoints: user.points,
+      remainingFund: task.fund,
+    });
+  } catch (err) {
+    console.error("Error completing watch:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Create a Social Task
+// =========================
+export const addSocialTask = async (req, res) => {
+  try {
+    let { url, platform, type, points, fund } = req.body;
+    const userId = req.user.id;
+
+    if (!url || !type || !platform || !points) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // 🔥 Normalize platform
+    platform = platform.toLowerCase().trim();
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (fund && user.points < fund) {
+      return res.status(400).json({ message: "Not enough points to fund this task" });
+    }
+
+    if (fund) {
+      user.points -= fund;
+      await user.save();
+      await addHistory(user._id, "debit", fund, "Created social task");
+    }
+
+    const task = new Task({
+      url,
+      type,         // like | comment | share | follow
+      platform,     // normalized lowercase
+      points,
+      fund: fund || 0,
+      createdBy: user._id,
+      status: "active",
+    });
+
+    await task.save();
+    res.status(201).json({ message: "Social task created", task });
+  } catch (err) {
+    console.error("Error adding social task:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Create an Action Task
+// =========================
+export const createActionTask = async (req, res) => {
+  try {
+    const { description, points, fund } = req.body;
+    const userId = req.user.id;
+
+    if (!description || !points) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (fund && user.points < fund) {
+      return res.status(400).json({ message: "Not enough points to fund this task" });
+    }
+
+    if (fund) {
+      user.points -= fund;
+      await user.save();
+      await addHistory(user._id, "debit", fund, "Created action task");
+    }
+
+    const task = new Task({
+      type: "action",
+      description,
+      points,
+      fund: fund || 0,
+      createdBy: user._id,
+      status: "active",
+    });
+
+    await task.save();
+    res.status(201).json({ message: "Action task created", task });
+  } catch (err) {
+    console.error("Error creating action task:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Verify an Action Task
+// =========================
+export const verifyAction = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (task.type !== "action") {
+      return res.status(400).json({ message: "Not an action task" });
+    }
+
+    if (task.completedBy.includes(userId)) {
+      return res.status(400).json({ message: "Action already verified for this user" });
+    }
+    if (task.fund < task.points) {
+      return res.status(400).json({ message: "Task has no rewards left" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.points += task.points;
+    await user.save();
+    await addHistory(user._id, "credit", task.points, "Verified action task");
+
+    task.fund -= task.points;
+    task.completedBy.push(user._id);
+    await task.save();
+
+    res.json({
+      message: "Action verified successfully",
+      earned: task.points,
+      userPoints: user.points,
+      remainingFund: task.fund,
+    });
+  } catch (err) {
+    console.error("Error verifying action:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Complete a Generic Task
+// =========================
+export const completeTask = async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    const userId = req.user.id;
+
+    if (!taskId) return res.status(400).json({ message: "Task ID is required" });
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    if (task.completedBy.includes(userId)) {
+      return res.status(400).json({ message: "Task already completed by this user" });
+    }
+
+    if (task.fund < task.points) {
+      return res.status(400).json({ message: "Task has no rewards left" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.points += task.points;
+    await user.save();
+    await addHistory(user._id, "credit", task.points, `Completed ${task.type} task`);
+
+    task.fund -= task.points;
+    task.completedBy.push(user._id);
+    await task.save();
+
+    res.json({
+      message: "Task completed successfully",
+      earned: task.points,
+      userPoints: user.points,
+      remainingFund: task.fund,
+    });
+  } catch (err) {
+    console.error("Error completing task:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Get all active Video Tasks
+// =========================
+export const getVideoTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({ type: "video", status: "active" });
+    res.json(tasks);
+  } catch (err) {
+    console.error("Error fetching video tasks:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Get all active Social Tasks
+// =========================
+export const getSocialTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({
+      type: { $in: ["like", "comment", "share", "follow"] },
+      status: "active",
+    });
+    res.json(tasks);
+  } catch (err) {
+    console.error("Error fetching social tasks:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Get promoted tasks by platform
+// =========================
+export const getPromotedTasksByPlatform = async (req, res) => {
+  try {
+    const { platform } = req.params;
+
+    if (!platform) {
+      return res.status(400).json({ message: "Platform is required" });
+    }
+
+    // Find active, promoted video tasks for this platform
+    const tasks = await Task.find({
+      type: "video",
+      platform: platform.toLowerCase(),
+      promoted: true,
+      status: "active",
+    }).sort({ createdAt: -1 });
+
+    res.json(tasks);
+  } catch (err) {
+    console.error("Error fetching promoted tasks:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// =========================
+// Get Promotion Costs
+// =========================
+export const getPromotionCosts = async (req, res) => {
+  try {
+    let settings = await PromotionSettings.findOne();
+    if (!settings) {
+      settings = await PromotionSettings.create({});
+    }
+    res.json(settings);
+  } catch (err) {
+    console.error("Error fetching promotion costs:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+// ===============================
+// Complete Social Action
+// ===============================
+export const completeSocialAction = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { actionType } = req.body;
+
+    const user = await User.findById(req.user.id);
+    const task = await Task.findById(taskId);
+    if (!user || !task) return res.status(404).json({ message: "Not found" });
+
+    if (task.type !== "social") return res.status(400).json({ message: "Not a social task" });
+    if (task.completedBy.includes(user._id)) return res.status(400).json({ message: "Already completed this task" });
+
+    const reward = task.points || 1;
+    user.points += reward;
+    await user.save();
+
+    task.completedBy.push(user._id);
+    await task.save();
+
+    await logHistory({
+      user: user._id,
+      taskType: "action",
+      taskId: task._id,
+      amount: reward,
+      description: `Completed ${actionType} on ${task.platform} post`,
+      metadata: { actionType },
+    });
+
+    res.json({ message: "Social action completed", pointsEarned: reward, currentPoints: user.points });
+  } catch (err) {
+    console.error("Complete Social Action error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
