@@ -11,6 +11,9 @@ import {
   completeSocialAction,
   getPromotedTasksByPlatform,
   promoteTask,
+  performTaskAction, // ✅ new import
+  getPlatformActionTasks 
+  
 } from "../controllers/taskController.js";
 import PromotionSettings from "../models/PromotionSettings.js";
 
@@ -29,8 +32,9 @@ router.post("/watch/:taskId/complete", auth, completeWatch);
 // ---------------------------
 router.post("/social", auth, addSocialTask);
 router.get("/social", auth, getSocialTasks);
+router.get("/action/:platform", auth, getPlatformActionTasks);
 router.post("/social/:taskId/complete", auth, completeSocialAction);
-
+router.post("/action", auth, performTaskAction);
 // ---------------------------
 // Promotion routes
 // ---------------------------
