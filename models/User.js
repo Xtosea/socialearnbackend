@@ -18,12 +18,12 @@ const userSchema = new mongoose.Schema(
     bio: { type: String, default: "" },
     dob: { type: String, default: "" },
 
-    // ✅ Social features
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // ✅ Social features (with safe defaults)
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
 
     // ✅ Referral system
-    referrals: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    referrals: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     referralCode: { type: String, unique: true },
   },
@@ -59,13 +59,15 @@ userSchema.methods.deductPoints = async function (amount) {
 
 // ================= VIRTUALS =================
 userSchema.virtual("followerCount").get(function () {
-  return this.followers.length;
+  return (this.followers && this.followers.length) || 0;
 });
+
 userSchema.virtual("followingCount").get(function () {
-  return this.following.length;
+  return (this.following && this.following.length) || 0;
 });
+
 userSchema.virtual("referralCount").get(function () {
-  return this.referrals.length;
+  return (this.referrals && this.referrals.length) || 0;
 });
 
 const User = mongoose.model("User", userSchema);
