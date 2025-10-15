@@ -6,14 +6,14 @@ const taskSchema = new mongoose.Schema(
     url: { type: String, required: true, trim: true },
 
     type: {
-      type: String,
-      enum: ["video", "like", "comment", "share", "follow"],
-      required: true,
-    },
+  type: String,
+  enum: ["video", "like", "comment", "share", "follow", "social"], // ✅ added "social"
+  required: true,
+},
 
     platform: {
       type: String,
-      enum: ["youtube", "tiktok", "facebook", "instagram", "twitter"],
+      enum: ["youtube", "tiktok", "facebook", "instagram", "twitter", "view", "click" ],
       required: true,
       lowercase: true,
       trim: true,
@@ -22,10 +22,19 @@ const taskSchema = new mongoose.Schema(
     // For video tasks
     duration: { type: Number }, // seconds
     watches: { type: Number, default: 0 }, // current watch count
-    maxWatches: { type: Number, default: 100 }, // ✅ limit views
+    maxWatches: { type: Number, default: 0 }, // ✅ limit views
 
     // For social tasks
-    requiredActions: { type: Number, default: 0 },
+    actions: [
+  {
+    type: { 
+      type: String, 
+      enum: ["like", "comment", "share", "follow", "subscribe"], 
+      required: true 
+    },
+    points: { type: Number, required: true },
+  },
+],
 
     // Reward system
     points: { type: Number, required: true, min: 1 }, // reward per view/action
