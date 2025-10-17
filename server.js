@@ -22,6 +22,7 @@ const app = express();
 // =============================
 const allowedOrigins = [
   "https://viralvideos.vercel.app", // your Vercel frontend
+    "https://viralvideos.vercel.app",
   "http://localhost:5173",          // for local dev
 ];
 
