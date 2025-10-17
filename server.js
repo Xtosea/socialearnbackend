@@ -17,15 +17,43 @@ import historyRoutes from "./routes/historyRoutes.js";
 dotenv.config();
 const app = express();
 
-// Middleware
+// =============================
+// ✅ CORS CONFIGURATION
+// =============================
+const allowedOrigins = [
+  "https://viralvideos.vercel.app", // your Vercel frontend
+  "http://localhost:5173",          // for local dev
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like Postman or server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// =============================
+// ✅ MIDDLEWARE
+// =============================
 app.use(express.json());
-app.use(cors());
 app.use(morgan("dev"));
 
-// Connect Database
+// =============================
+// ✅ DATABASE CONNECTION
+// =============================
 connectDB();
 
-// Mount routes
+// =============================
+// ✅ ROUTES
+// =============================
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/users", userRoutes);
@@ -33,20 +61,34 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/history", historyRoutes);
 
-// Create HTTP server & Socket.IO
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "http://localhost:3000", methods: ["GET", "POST"] },
+// =============================
+// ✅ SIMPLE TEST ROUTE
+// =============================
+app.get("/api/test", (req, res) => {
+  res.json({ message: "✅ Backend connected successfully!" });
 });
 
-// Make io accessible in routes/controllers
+// =============================
+// ✅ SERVER + SOCKET.IO SETUP
+// =============================
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
 app.set("io", io);
 
-// Socket.IO connection
+// =============================
+// ✅ SOCKET EVENTS
+// =============================
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Optional: join room by userId for targeted events
   socket.on("joinRoom", (userId) => {
     socket.join(userId);
     console.log(`User ${userId} joined their room`);
@@ -57,6 +99,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start server
+// =============================
+// ✅ START SERVER
+// =============================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
