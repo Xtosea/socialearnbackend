@@ -26,7 +26,7 @@ const allowedOrigins = [
   "http://localhost:3000",  // Local CRA
   "http://127.0.0.1:5173",
   "http://127.0.0.1:3000",
-  "https://viralvideos.vercel.app", // Deployed frontend
+  "https://viralvideoplus.vercel.app", // Deployed frontend
 ];
 
 // ✅ CORS Middleware
