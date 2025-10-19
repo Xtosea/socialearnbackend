@@ -8,7 +8,7 @@ export const getProfile = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
   } catch (err) {
-    console.error(err);
+    console.error("Get profile error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -27,9 +27,9 @@ export const updateProfile = async (req, res) => {
 
     await user.save();
 
-    res.json({ message: "Profile updated", user });
+    res.json({ message: "Profile updated successfully", user });
   } catch (err) {
-    console.error(err);
+    console.error("Update profile error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -47,14 +47,19 @@ export const followUser = async (req, res) => {
     const userToFollow = await User.findById(id);
     const currentUser = await User.findById(currentUserId);
 
-    if (!userToFollow) return res.status(404).json({ message: "User not found" });
-    if (currentUser.following.includes(id)) return res.status(400).json({ message: "Already following this user" });
+    if (!userToFollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    currentUser.following.push(id);
+    if (userToFollow.followers.includes(currentUserId)) {
+      return res.status(400).json({ message: "Already following this user" });
+    }
+
     userToFollow.followers.push(currentUserId);
+    currentUser.following.push(userToFollow._id);
 
-    await currentUser.save();
     await userToFollow.save();
+    await currentUser.save();
 
     await HistoryLog.create({
       user: currentUserId,
@@ -66,6 +71,7 @@ export const followUser = async (req, res) => {
 
     res.json({ message: `You are now following ${userToFollow.username}` });
   } catch (err) {
+    console.error("Follow user error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -73,20 +79,29 @@ export const followUser = async (req, res) => {
 // ================= UNFOLLOW USER =================
 export const unfollowUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // user to unfollow
     const currentUserId = req.user._id;
 
     const userToUnfollow = await User.findById(id);
     const currentUser = await User.findById(currentUserId);
 
-    if (!userToUnfollow) return res.status(404).json({ message: "User not found" });
-    if (!currentUser.following.includes(id)) return res.status(400).json({ message: "You are not following this user" });
+    if (!userToUnfollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    currentUser.following = currentUser.following.filter(uid => uid.toString() !== id);
-    userToUnfollow.followers = userToUnfollow.followers.filter(uid => uid.toString() !== currentUserId.toString());
+    if (!userToUnfollow.followers.includes(currentUserId)) {
+      return res.status(400).json({ message: "You are not following this user" });
+    }
 
-    await currentUser.save();
+    userToUnfollow.followers = userToUnfollow.followers.filter(
+      (uid) => uid.toString() !== currentUserId.toString()
+    );
+    currentUser.following = currentUser.following.filter(
+      (uid) => uid.toString() !== id.toString()
+    );
+
     await userToUnfollow.save();
+    await currentUser.save();
 
     await HistoryLog.create({
       user: currentUserId,
@@ -98,6 +113,7 @@ export const unfollowUser = async (req, res) => {
 
     res.json({ message: `You unfollowed ${userToUnfollow.username}` });
   } catch (err) {
+    console.error("Unfollow user error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
