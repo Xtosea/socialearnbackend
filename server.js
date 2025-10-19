@@ -24,6 +24,15 @@ const app = express();
 // =========================================
 // ✅ SMART CORS CONFIGURATION
 // =========================================
+// =========================================
+// 🧩 ORIGIN LOGGER (for debugging + analytics)
+// =========================================
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  console.log(`🌍 Incoming request from: ${origin || "unknown origin"} → ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
