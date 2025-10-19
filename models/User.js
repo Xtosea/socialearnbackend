@@ -3,26 +3,27 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
+    // ===== BASIC INFO =====
     username: { type: String, required: true, unique: true, minlength: 4 },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     country: { type: String },
 
-    // ✅ Role (user by default, can be set to admin)
+    // ===== ROLE =====
     role: { type: String, enum: ["user", "admin"], default: "user" },
 
-    // ✅ Points balance
-    points: { type: Number, default: 0, min: 0 },
-
-    // ✅ Profile fields
+    // ===== PROFILE =====
     bio: { type: String, default: "" },
     dob: { type: String, default: "" },
 
-    // ✅ Social features (with safe defaults)
+    // ===== POINTS =====
+    points: { type: Number, default: 0, min: 0 },
+
+    // ===== SOCIAL =====
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
 
-    // ✅ Referral system
+    // ===== REFERRALS =====
     referrals: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     referralCode: { type: String, unique: true },
@@ -55,6 +56,29 @@ userSchema.methods.deductPoints = async function (amount) {
   if (this.points < 0) this.points = 0;
   await this.save();
   return this.points;
+};
+
+// ================= FOLLOW SYSTEM =================
+userSchema.methods.follow = async function (targetUser) {
+  if (!this.following.includes(targetUser._id)) {
+    this.following.push(targetUser._id);
+    targetUser.followers.push(this._id);
+    await this.save();
+    await targetUser.save();
+  }
+  return { following: this.following, followers: targetUser.followers };
+};
+
+userSchema.methods.unfollow = async function (targetUser) {
+  this.following = this.following.filter(
+    (id) => id.toString() !== targetUser._id.toString()
+  );
+  targetUser.followers = targetUser.followers.filter(
+    (id) => id.toString() !== this._id.toString()
+  );
+  await this.save();
+  await targetUser.save();
+  return { following: this.following, followers: targetUser.followers };
 };
 
 // ================= VIRTUALS =================
