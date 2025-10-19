@@ -21,28 +21,39 @@ const app = express();
 // =========================================
 // ✅ CORS CONFIGURATION (LOCAL + VERCEL)
 // =========================================
+// =========================================
+// ✅ SMART CORS CONFIGURATION
+// =========================================
 const allowedOrigins = [
-  "http://localhost:5173",  // Local Vite
-  "http://localhost:3000",  // Local CRA
+  "http://localhost:5173",
+  "http://localhost:3000",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:3000",
-  "https://viralvideoplus.vercel.app", // Deployed frontend
+  "https://viralvideos.vercel.app",
+  "https://viralvideoplus.vercel.app",
 ];
 
-// ✅ CORS Middleware
+// ✅ Dynamic CORS Middleware
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like Postman, mobile, or same-server)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      // ✅ Allow requests from:
+      // - No origin (Postman, server-to-server)
+      // - Any Vercel preview domain
+      // - Any domain explicitly listed above
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /vercel\.app$/.test(origin)
+      ) {
         callback(null, true);
       } else {
-        console.error("❌ Blocked by CORS:", origin);
+        console.warn("❌ Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
 );
 
