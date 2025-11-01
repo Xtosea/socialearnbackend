@@ -19,20 +19,17 @@ dotenv.config();
 const app = express();
 
 // =========================================
-// ✅ CORS CONFIGURATION (LOCAL + VERCEL)
-// =========================================
-// =========================================
-// ✅ SMART CORS CONFIGURATION
-// =========================================
-// =========================================
 // 🧩 ORIGIN LOGGER (for debugging + analytics)
 // =========================================
 app.use((req, res, next) => {
-const origin = req.get("origin");
-console.log(🌍 Incoming request from: ${origin || "unknown origin"} → ${req.method} ${req.originalUrl});
-next();
+  const origin = req.get("origin");
+  console.log(`🌍 Incoming request from: ${origin || "unknown origin"} → ${req.method} ${req.originalUrl}`);
+  next();
 });
 
+// =========================================
+// ✅ SMART CORS CONFIGURATION
+// =========================================
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -41,31 +38,28 @@ const allowedOrigins = [
   "https://viralvideos.vercel.app",
   "https://viralvideoplus.vercel.app",
   "https://www.trendwatch.i.ng",
-  "https://trendwatch.i.ng",  // 👈 add this
+  "https://trendwatch.i.ng", // 👈 added non-www version too
 ];
 
 // ✅ Dynamic CORS Middleware
 app.use(
-cors({
-origin: function (origin, callback) {
-// ✅ Allow requests from:
-// - No origin (Postman, server-to-server)
-// - Any Vercel preview domain
-// - Any domain explicitly listed above
-if (
-!origin ||
-allowedOrigins.includes(origin) ||
-/vercel.app$/.test(origin)
-) {
-callback(null, true);
-} else {
-console.warn("❌ Blocked by CORS:", origin);
-callback(new Error("Not allowed by CORS"));
-}
-},
-credentials: true,
-methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-})
+  cors({
+    origin: function (origin, callback) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /vercel\.app$/.test(origin) ||
+        /\.trendwatch\.i\.ng$/.test(origin) // ✅ allows trendwatch.i.ng + subdomains
+      ) {
+        callback(null, true);
+      } else {
+        console.warn("❌ Blocked by CORS:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  })
 );
 
 // =========================================
@@ -91,7 +85,7 @@ app.use("/api/history", historyRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => {
-res.json({ message: "✅ Backend connected successfully!" });
+  res.json({ message: "✅ Backend connected successfully!" });
 });
 
 // =========================================
@@ -100,33 +94,34 @@ res.json({ message: "✅ Backend connected successfully!" });
 const server = http.createServer(app);
 
 const io = new Server(server, {
-cors: {
-origin: allowedOrigins,
-methods: ["GET", "POST"],
-credentials: true,
-},
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
 });
 
 app.set("io", io);
 
 io.on("connection", (socket) => {
-console.log("✅ User connected:", socket.id);
+  console.log("✅ User connected:", socket.id);
 
-socket.on("joinRoom", (userId) => {
-socket.join(userId);
-console.log(🟢 User ${userId} joined their room);
-});
+  socket.on("joinRoom", (userId) => {
+    socket.join(userId);
+    console.log(`🟢 User ${userId} joined their room`);
+  });
 
-socket.on("disconnect", () => {
-console.log("🔴 User disconnected:", socket.id);
-});
+  socket.on("disconnect", () => {
+    console.log("🔴 User disconnected:", socket.id);
+  });
 });
 
 // =========================================
-// ✅ START SERVER
+// ✅ START SERVER (Render-compatible)
 // =========================================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () =>
-console.log(🚀 Server running on port ${PORT})
-);
 
+// ✅ Must bind to 0.0.0.0 so Render detects the open port
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
