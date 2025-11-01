@@ -19,20 +19,8 @@ dotenv.config();
 const app = express();
 
 // =========================================
-// ✅ CORS CONFIGURATION (LOCAL + VERCEL)
-// =========================================
-// =========================================
 // ✅ SMART CORS CONFIGURATION
 // =========================================
-// =========================================
-// 🧩 ORIGIN LOGGER (for debugging + analytics)
-// =========================================
-app.use((req, res, next) => {
-  const origin = req.get("origin");
-  console.log(`🌍 Incoming request from: ${origin || "unknown origin"} → ${req.method} ${req.originalUrl}`);
-  next();
-});
-
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -41,7 +29,7 @@ const allowedOrigins = [
   "https://viralvideos.vercel.app",
   "https://viralvideoplus.vercel.app",
   "https://www.trendwatch.i.ng",
-  "https://trendwatch.i.ng",  // 👈 add this
+  "https://trendwatch.i.ng", // 👈 added non-www version too
 ];
 
 // ✅ Dynamic CORS Middleware
@@ -52,10 +40,12 @@ app.use(
       // - No origin (Postman, server-to-server)
       // - Any Vercel preview domain
       // - Any domain explicitly listed above
+      // - Any subdomain of trendwatch.i.ng
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
-        /vercel\.app$/.test(origin)
+        /vercel\.app$/.test(origin) ||
+        /\.trendwatch\.i\.ng$/.test(origin) // ✅ allows trendwatch.i.ng + subdomains
       ) {
         callback(null, true);
       } else {
