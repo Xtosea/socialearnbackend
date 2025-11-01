@@ -40,6 +40,7 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "https://viralvideos.vercel.app",
   "https://viralvideoplus.vercel.app",
+  "https://www.trendwatch.i.ng/login",
 ];
 
 // ✅ Dynamic CORS Middleware
