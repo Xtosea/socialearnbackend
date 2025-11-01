@@ -25,4 +25,4 @@ router.get("/referrals", protect, getReferrals);
 // ================= LEADERBOARD =================
 router.get("/leaderboard", getLeaderboard);
 
-export default route;
+export default router;
