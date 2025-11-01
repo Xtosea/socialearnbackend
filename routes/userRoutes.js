@@ -7,7 +7,7 @@ import {
   getReferrals,
 } from "../controllers/userController.js";
 import { getLeaderboard } from "../controllers/leaderboardController.js";
-import { protect } from "../middleware/authMiddleware.js"; // unified middleware
+import { protect } from "../middleware/auth.js"; // unified middleware
 
 const router = express.Router();
 
