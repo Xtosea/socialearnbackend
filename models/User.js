@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     // ===== PROFILE =====
     bio: { type: String, default: "" },
     dob: { type: String, default: "" },
+    profilePicture: { type: String, default: "" }, // ✅ Added this line
 
     // ===== POINTS =====
     points: { type: Number, default: 0, min: 0 },
