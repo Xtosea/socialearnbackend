@@ -9,23 +9,29 @@ import {
   addPointsToUser,
   deductPointsFromUser,
   rewardLeaderboard,
+  deleteUser,
+  deleteVideoTask
 } from "../controllers/adminController.js";
 
 const router = express.Router();
 
-// ================= USERS =================
+// Users
 router.get("/users", auth, adminMiddleware, getAllUsers);
+router.delete("/users/:userId", auth, adminMiddleware, deleteUser);
 
-// ================= WALLET =================
+// Wallet
 router.get("/wallet", auth, adminMiddleware, getAdminWallet);
 router.post("/wallet/add", auth, adminMiddleware, addToAdminWallet);
 router.post("/wallet/reset", auth, adminMiddleware, resetAdminWallet);
 
-// ================= USER POINTS =================
+// User points
 router.post("/points/add", auth, adminMiddleware, addPointsToUser);
 router.post("/points/deduct", auth, adminMiddleware, deductPointsFromUser);
 
-// ================= LEADERBOARD =================
+// Leaderboard
 router.post("/points/reward-leaderboard", auth, adminMiddleware, rewardLeaderboard);
+
+// Video Tasks
+router.delete("/tasks/:taskId", auth, adminMiddleware, deleteVideoTask);
 
 export default router;
