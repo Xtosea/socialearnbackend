@@ -1,4 +1,6 @@
 import User from "../models/User.js";
+import Task from "../models/Task.js";
+import History from "../models/HistoryLog.js";
 
 // Admin wallet (for display only)
 let adminWallet = 0;
@@ -39,7 +41,6 @@ export const addPointsToUser = async (req, res) => {
     user.points += Number(amount);
     await user.save();
 
-    // Emit Socket.IO update
     const io = req.app.get("io");
     io.to(user._id.toString()).emit("walletUpdated", { 
       userId: user._id.toString(),
@@ -76,6 +77,46 @@ export const deductPointsFromUser = async (req, res) => {
   }
 };
 
+// ================= DELETE USERS =================
+export const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Delete user's tasks and history
+    await Task.deleteMany({ createdBy: user._id });
+    await History.deleteMany({ user: user._id });
+
+    await user.remove();
+
+    const io = req.app.get("io");
+    if (io) io.emit("userDeleted", { userId });
+
+    res.json({ message: "User deleted successfully", userId });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ================= DELETE VIDEO TASKS =================
+export const deleteVideoTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    await task.remove();
+
+    const io = req.app.get("io");
+    if (io) io.emit("taskDeleted", { taskId });
+
+    res.json({ message: "Video task deleted successfully", taskId });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ================= LEADERBOARD =================
 export const rewardLeaderboard = async (req, res) => {
   const { amount } = req.body;
@@ -88,7 +129,6 @@ export const rewardLeaderboard = async (req, res) => {
       u.points += Number(amount);
       await u.save();
 
-      // Emit update to each top user
       io.to(u._id.toString()).emit("walletUpdated", {
         userId: u._id.toString(),
         balance: u.points
