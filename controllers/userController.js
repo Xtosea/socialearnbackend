@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 import HistoryLog from "../models/HistoryLog.js";
-import generateToken from "../utils/generateToken.js";
+//import generateToken from "../utils/generateToken.js";
 
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
