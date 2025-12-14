@@ -13,7 +13,7 @@ import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import historyRoutes from "./routes/historyRoutes.js";
-import "./telegramBot.js";
+//import "./telegramBot.js";
 
 dotenv.config();
 
