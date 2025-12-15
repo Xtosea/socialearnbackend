@@ -233,6 +233,41 @@ export const getSocialTasks = async (req, res) => {
   }
 };
 
+export const startSocialTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+
+    const task = await Task.findById(taskId);
+    if (!task || task.type !== "social") {
+      return res.status(404).json({ message: "Social task not found" });
+    }
+
+    if (task.completedBy.includes(req.user.id)) {
+      return res.status(400).json({ message: "Task already completed" });
+    }
+
+    const alreadyWorking = task.workingOn.some(
+      w => w.user.toString() === req.user.id
+    );
+
+    if (!alreadyWorking) {
+      task.workingOn.push({
+        user: req.user.id,
+        startedAt: new Date(),
+      });
+      await task.save();
+    }
+
+    res.json({
+      message: "Task started",
+      workingCount: task.workingOn.length,
+    });
+  } catch (err) {
+    console.error("startSocialTask error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const getPlatformActionTasks = async (req, res) => {
   try {
     const { platform } = req.params;
@@ -266,17 +301,48 @@ export const getPlatformActionTasks = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
 export const completeSocialAction = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.taskId);
-    if (!task || task.type !== "social")
+    const { taskId } = req.params;
+
+    const task = await Task.findById(taskId);
+    if (!task || task.type !== "social") {
       return res.status(404).json({ message: "Social task not found" });
+    }
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (task.completedBy.includes(user._id))
+    if (task.completedBy.includes(user._id)) {
       return res.status(400).json({ message: "Already completed" });
+    }
+
+    // ⏱️ Validate working time
+    const workingEntry = task.workingOn.find(
+      w => w.user.toString() === user._id.toString()
+    );
+
+    if (!workingEntry) {
+      return res.status(400).json({
+        message: "Task not started properly",
+      });
+    }
+
+    const timeSpent =
+      (Date.now() - new Date(workingEntry.startedAt).getTime()) / 1000;
+
+    if (timeSpent < 15) {
+      return res.status(400).json({
+        message: "Please spend more time on the task",
+      });
+    }
+
+    // Cleanup
+    task.workingOn = task.workingOn.filter(
+      w => w.user.toString() !== user._id.toString()
+    );
 
     task.completedBy.push(user._id);
     await task.save();
@@ -287,7 +353,7 @@ export const completeSocialAction = async (req, res) => {
       taskType: "social-action",
       taskId: task._id,
       description: "Completed social task",
-      metadata: { url: task.url, platform: task.platform },
+      metadata: { platform: task.platform, url: task.url },
     });
 
     emitPointsUpdate(req, user);
@@ -297,10 +363,10 @@ export const completeSocialAction = async (req, res) => {
       points: user.points,
     });
   } catch (err) {
+    console.error("completeSocialAction error:", err);
     res.status(500).json({ error: err.message });
   }
 };
-
 /* ======================================================
    💰 PROMOTIONS
 ====================================================== */
