@@ -11,10 +11,13 @@ const taskSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ✅ Title OPTIONAL (auto-filled if missing)
     title: {
       type: String,
-      required: true,
       trim: true,
+      default: function () {
+        return `${this.platform || "Social"} task`;
+      },
     },
 
     platform: {
@@ -33,12 +36,16 @@ const taskSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // For video tasks
-    duration: { type: Number }, // seconds
+    /* =========================
+       VIDEO TASKS
+    ========================== */
+    duration: { type: Number },
     watches: { type: Number, default: 0 },
     maxWatches: { type: Number, default: 0 },
 
-    // For social tasks
+    /* =========================
+       SOCIAL TASKS
+    ========================== */
     actions: [
       {
         type: {
@@ -50,24 +57,39 @@ const taskSchema = new mongoose.Schema(
       },
     ],
 
-    // Reward system
+    /* =========================
+       REWARD SYSTEM
+    ========================== */
     points: { type: Number, required: true, min: 1 },
     fund: { type: Number, default: 0 },
 
-    rewardPoints: {
-      type: Number,
-      required: true,
-    }, // ✅ FIXED COMMA
+    // ⚠️ OPTIONAL — keep only if you REALLY need it
+    rewardPoints: { type: Number },
 
-    // Ownership
+    /* =========================
+       TRACKING
+    ========================== */
+    workingOn: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        startedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    completedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    /* =========================
+       OWNERSHIP
+    ========================== */
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    completedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
-    // Meta
+    /* =========================
+       META
+    ========================== */
     status: { type: String, enum: ["active", "inactive"], default: "active" },
     promoted: { type: Boolean, default: true },
   },
