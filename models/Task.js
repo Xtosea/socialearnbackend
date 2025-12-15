@@ -11,6 +11,12 @@ const taskSchema = new mongoose.Schema(
   required: true,
 },
 
+title: {
+  type: String,
+  required: true,
+  trim: true,
+},
+
     platform: {
       type: String,
       enum: ["youtube", "tiktok", "facebook", "instagram", "twitter", "view", "click" ],
