@@ -245,13 +245,27 @@ export const getPlatformActionTasks = async (req, res) => {
       .populate("completedBy", "username")
       .sort({ createdAt: -1 });
 
-    res.json(tasks);
+    // Ensure all tasks have a points field
+    const tasksWithPoints = tasks.map(t => ({
+      _id: t._id,
+      url: t.url,
+      platform: t.platform,
+      type: t.type,
+      actions: t.actions || [],
+      requiredActions: t.requiredActions || (t.actions ? t.actions.length : 1),
+      createdBy: t.createdBy,
+      completedBy: t.completedBy,
+      points: t.points || (t.actions && t.actions[0] ? t.actions[0].points : 10), // default 10 if missing
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
+
+    res.json(tasksWithPoints);
   } catch (err) {
     console.error("getPlatformActionTasks error:", err);
     res.status(500).json({ error: err.message });
   }
 };
-
 export const completeSocialAction = async (req, res) => {
   try {
     const task = await Task.findById(req.params.taskId);
