@@ -40,6 +40,11 @@ const taskSchema = new mongoose.Schema(
     points: { type: Number, required: true, min: 1 }, // reward per view/action
     fund: { type: Number, default: 0 }, // pool of points
 
+rewardPoints: {
+  type: Number,
+  required: true,
+}
+
     // Ownership
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     completedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
