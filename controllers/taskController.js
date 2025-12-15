@@ -335,7 +335,7 @@ export const completeSocialAction = async (req, res) => {
 
     if (timeSpent < 15) {
       return res.status(400).json({
-        message: "Please spend more time on the task",
+        message: "Please complete the task",
       });
     }
 
@@ -350,7 +350,7 @@ export const completeSocialAction = async (req, res) => {
     await updateUserPoints({
       user,
       amount: task.points,
-      taskType: "social-action",
+      taskType: "action",
       taskId: task._id,
       description: "Completed social task",
       metadata: { platform: task.platform, url: task.url },
