@@ -14,6 +14,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import historyRoutes from "./routes/historyRoutes.js";
 //import "./telegramBot.js";
+import contactRoutes from "./routes/contact.js";
 
 dotenv.config();
 
@@ -84,6 +85,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/history", historyRoutes);
+app.use(express.json());
+app.use("/api/contact", contactRoutes);
 
 // ✅ Root route (for Render health check)
 app.get("/", (req, res) => {
