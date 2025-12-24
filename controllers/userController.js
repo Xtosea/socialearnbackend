@@ -8,9 +8,12 @@ export const registerUser = async (req, res) => {
     const { username, email, password, country, referralCode } = req.body;
 
     if (!username || !email || !password || !country) {
-      return res.status(400).json({ message: "All required fields must be filled" });
+      return res
+        .status(400)
+        .json({ message: "All required fields must be filled" });
     }
 
+    // 🔎 Check existing user
     const userExists = await User.findOne({
       $or: [{ email }, { username }],
     });
@@ -19,13 +22,38 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    let referrer = null;
+
+    // ================= REFERRAL LOGIC =================
+    if (referralCode) {
+      referrer = await User.findOne({ referralCode });
+
+      if (!referrer) {
+        return res.status(400).json({ message: "Invalid referral code" });
+      }
+
+      // ❌ Prevent self-referral
+      if (referrer.email === email) {
+        return res
+          .status(400)
+          .json({ message: "You cannot refer yourself" });
+      }
+    }
+
+    // ================= CREATE USER =================
     const user = await User.create({
       username,
       email,
       password,
       country,
-      referralCode,
+      referredBy: referrer ? referrer._id : null,
     });
+
+    // ================= SAVE REFERRAL RELATION =================
+    if (referrer) {
+      referrer.referrals.push(user._id);
+      await referrer.save();
+    }
 
     res.status(201).json({
       user: {
@@ -80,12 +108,19 @@ export const getProfile = async (req, res) => {
 // ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
   try {
-    const { username, email, country, bio, dob, password, profilePicture } = req.body;
-    const user = await User.findById(req.user._id);
+    const {
+      username,
+      email,
+      country,
+      bio,
+      dob,
+      password,
+      profilePicture,
+    } = req.body;
 
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // 🧩 Update only provided fields
     if (username) user.username = username;
     if (email) user.email = email;
     if (country) user.country = country;
@@ -100,6 +135,7 @@ export const updateProfile = async (req, res) => {
     await user.save();
 
     const updatedUser = await User.findById(user._id).select("-password");
+
     res.json({
       message: "Profile updated successfully",
       user: updatedUser,
@@ -113,7 +149,7 @@ export const updateProfile = async (req, res) => {
 // ================= FOLLOW USER =================
 export const followUser = async (req, res) => {
   try {
-    const { id } = req.params; // user to follow
+    const { id } = req.params;
     const currentUserId = req.user._id;
 
     if (id === currentUserId.toString()) {
@@ -155,7 +191,7 @@ export const followUser = async (req, res) => {
 // ================= UNFOLLOW USER =================
 export const unfollowUser = async (req, res) => {
   try {
-    const { id } = req.params; // user to unfollow
+    const { id } = req.params;
     const currentUserId = req.user._id;
 
     const userToUnfollow = await User.findById(id);
@@ -166,12 +202,15 @@ export const unfollowUser = async (req, res) => {
     }
 
     if (!userToUnfollow.followers.includes(currentUserId)) {
-      return res.status(400).json({ message: "You are not following this user" });
+      return res
+        .status(400)
+        .json({ message: "You are not following this user" });
     }
 
     userToUnfollow.followers = userToUnfollow.followers.filter(
       (uid) => uid.toString() !== currentUserId.toString()
     );
+
     currentUser.following = currentUser.following.filter(
       (uid) => uid.toString() !== id.toString()
     );
