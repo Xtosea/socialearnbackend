@@ -1,105 +1,7 @@
 import User from "../models/User.js";
 import HistoryLog from "../models/HistoryLog.js";
-import generateToken from "../utils/generateToken.js";
-import { nanoid } from "nanoid"; // for referral codes
 
-// ================= REGISTER USER =================
-export const registerUser = async (req, res) => {
-  try {
-    const { username, email, password, country, referralCode } = req.body;
-
-    // ------------------- VALIDATION -------------------
-    if (!username || username.trim().length < 4) {
-      return res
-        .status(400)
-        .json({ message: "Username must be at least 4 characters" });
-    }
-    if (!email || !password || !country || country.trim() === "") {
-      return res.status(400).json({ message: "All required fields must be filled" });
-    }
-
-    // ------------------- CHECK EXISTING USER -------------------
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
-    if (userExists) return res.status(400).json({ message: "User already exists" });
-
-    // ------------------- REFERRAL LOGIC -------------------
-    let referrer = null;
-    if (referralCode && referralCode.trim() !== "") {
-      referrer = await User.findOne({ referralCode: referralCode.trim() });
-      if (!referrer) return res.status(400).json({ message: "Invalid referral code" });
-      if (referrer.email === email) return res.status(400).json({ message: "You cannot refer yourself" });
-    }
-
-    // ------------------- CREATE USER -------------------
-    const newReferralCode = nanoid(8); // auto-generate unique code
-    const userData = {
-      username,
-      email,
-      password,
-      country,
-      referralCode: newReferralCode,
-      referredBy: referrer ? referrer._id : null,
-    };
-
-    const user = await User.create(userData);
-
-    // ------------------- SAVE REFERRAL RELATION & REWARD -------------------
-    if (referrer) {
-      referrer.referrals.push(user._id);
-      referrer.points += 1500; // reward referrer
-      await referrer.save();
-
-      // Log referral reward
-      await HistoryLog.create({
-        user: referrer._id,
-        taskType: "referral",
-        taskId: user._id,
-        amount: 1500,
-        metadata: { action: "Referral reward", referredUsername: user.username },
-      });
-    }
-
-    // ------------------- RESPONSE -------------------
-    res.status(201).json({
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        country: user.country,
-        points: user.points,
-        referralCode: user.referralCode,
-      },
-      token: generateToken(user._id),
-    });
-  } catch (error) {
-    console.error("Register error:", error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// ================= LOGIN USER =================
-export const loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-
-    if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: "Invalid email or password" });
-    }
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ================= GET PROFILE =================
+// ================= GET CURRENT USER =================
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
@@ -114,38 +16,18 @@ export const getProfile = async (req, res) => {
 // ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
   try {
-    const {
-      username,
-      email,
-      country,
-      bio,
-      dob,
-      password,
-      profilePicture,
-    } = req.body;
-
+    const { username, email, country } = req.body;
     const user = await User.findById(req.user._id);
+
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (username) user.username = username;
     if (email) user.email = email;
     if (country) user.country = country;
-    if (bio) user.bio = bio;
-    if (dob) user.dob = dob;
-    if (profilePicture) user.profilePicture = profilePicture;
-
-    if (password && password.trim() !== "") {
-      user.password = password;
-    }
 
     await user.save();
 
-    const updatedUser = await User.findById(user._id).select("-password");
-
-    res.json({
-      message: "Profile updated successfully",
-      user: updatedUser,
-    });
+    res.json({ message: "Profile updated successfully", user });
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ message: "Server error" });
@@ -155,7 +37,7 @@ export const updateProfile = async (req, res) => {
 // ================= FOLLOW USER =================
 export const followUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // user to follow
     const currentUserId = req.user._id;
 
     if (id === currentUserId.toString()) {
@@ -197,7 +79,7 @@ export const followUser = async (req, res) => {
 // ================= UNFOLLOW USER =================
 export const unfollowUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // user to unfollow
     const currentUserId = req.user._id;
 
     const userToUnfollow = await User.findById(id);
@@ -208,15 +90,12 @@ export const unfollowUser = async (req, res) => {
     }
 
     if (!userToUnfollow.followers.includes(currentUserId)) {
-      return res
-        .status(400)
-        .json({ message: "You are not following this user" });
+      return res.status(400).json({ message: "You are not following this user" });
     }
 
     userToUnfollow.followers = userToUnfollow.followers.filter(
       (uid) => uid.toString() !== currentUserId.toString()
     );
-
     currentUser.following = currentUser.following.filter(
       (uid) => uid.toString() !== id.toString()
     );
