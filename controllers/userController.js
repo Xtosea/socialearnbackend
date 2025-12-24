@@ -5,28 +5,41 @@ import HistoryLog from "../models/HistoryLog.js";
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-    const userExists = await User.findOne({ email });
+    const { username, email, password, country, referralCode } = req.body;
+
+    if (!username || !email || !password || !country) {
+      return res.status(400).json({ message: "All required fields must be filled" });
+    }
+
+    const userExists = await User.findOne({
+      $or: [{ email }, { username }],
+    });
 
     if (userExists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const user = await User.create({ username, email, password });
+    const user = await User.create({
+      username,
+      email,
+      password,
+      country,
+      referralCode,
+    });
 
-    if (user) {
-      res.status(201).json({
+    res.status(201).json({
+      user: {
         _id: user._id,
         username: user.username,
         email: user.email,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(400).json({ message: "Invalid user data" });
-    }
+        country: user.country,
+        points: user.points,
+      },
+      token: generateToken(user._id),
+    });
   } catch (error) {
-    console.error("Register error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Register error:", error.message);
+    res.status(500).json({ message: error.message });
   }
 };
 
