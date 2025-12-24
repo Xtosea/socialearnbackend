@@ -1,60 +1,65 @@
 import User from "../models/User.js";
 import HistoryLog from "../models/HistoryLog.js";
 import generateToken from "../utils/generateToken.js";
+import { nanoid } from "nanoid"; // for referral codes
 
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
   try {
     const { username, email, password, country, referralCode } = req.body;
 
-    if (!username || !email || !password || !country) {
+    // ------------------- VALIDATION -------------------
+    if (!username || username.trim().length < 4) {
       return res
         .status(400)
-        .json({ message: "All required fields must be filled" });
+        .json({ message: "Username must be at least 4 characters" });
+    }
+    if (!email || !password || !country || country.trim() === "") {
+      return res.status(400).json({ message: "All required fields must be filled" });
     }
 
-    // 🔎 Check existing user
-    const userExists = await User.findOne({
-      $or: [{ email }, { username }],
-    });
+    // ------------------- CHECK EXISTING USER -------------------
+    const userExists = await User.findOne({ $or: [{ email }, { username }] });
+    if (userExists) return res.status(400).json({ message: "User already exists" });
 
-    if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
-    }
-
+    // ------------------- REFERRAL LOGIC -------------------
     let referrer = null;
-
-    // ================= REFERRAL LOGIC =================
-    if (referralCode) {
-      referrer = await User.findOne({ referralCode });
-
-      if (!referrer) {
-        return res.status(400).json({ message: "Invalid referral code" });
-      }
-
-      // ❌ Prevent self-referral
-      if (referrer.email === email) {
-        return res
-          .status(400)
-          .json({ message: "You cannot refer yourself" });
-      }
+    if (referralCode && referralCode.trim() !== "") {
+      referrer = await User.findOne({ referralCode: referralCode.trim() });
+      if (!referrer) return res.status(400).json({ message: "Invalid referral code" });
+      if (referrer.email === email) return res.status(400).json({ message: "You cannot refer yourself" });
     }
 
-    // ================= CREATE USER =================
-    const user = await User.create({
+    // ------------------- CREATE USER -------------------
+    const newReferralCode = nanoid(8); // auto-generate unique code
+    const userData = {
       username,
       email,
       password,
       country,
+      referralCode: newReferralCode,
       referredBy: referrer ? referrer._id : null,
-    });
+    };
 
-    // ================= SAVE REFERRAL RELATION =================
+    const user = await User.create(userData);
+
+    // ------------------- SAVE REFERRAL RELATION & REWARD -------------------
     if (referrer) {
       referrer.referrals.push(user._id);
+      referrer.points += 1500; // reward referrer
       await referrer.save();
+
+      // Log referral reward
+      await HistoryLog.create({
+        user: referrer._id,
+        taskType: "referral",
+        taskId: user._id,
+        amount: 1500,
+        metadata: { action: "Referral reward", referredUsername: user.username },
+      });
     }
 
+    // ------------------- RESPONSE -------------------
     res.status(201).json({
       user: {
         _id: user._id,
@@ -62,11 +67,12 @@ export const registerUser = async (req, res) => {
         email: user.email,
         country: user.country,
         points: user.points,
+        referralCode: user.referralCode,
       },
       token: generateToken(user._id),
     });
   } catch (error) {
-    console.error("Register error:", error.message);
+    console.error("Register error:", error);
     res.status(500).json({ message: error.message });
   }
 };
