@@ -3,7 +3,6 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
-    // ===== BASIC INFO =====
     username: {
       type: String,
       required: true,
@@ -22,9 +21,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    country: {
-      type: String,
-    },
+    country: String,
 
     // ===== EMAIL VERIFICATION =====
     isEmailVerified: {
@@ -32,9 +29,7 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-    emailVerificationToken: {
-      type: String,
-    },
+    emailVerificationToken: String,
 
     // ===== ROLE =====
     role: {
@@ -91,9 +86,23 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
+  { timestamps: true }
 );
+
+// ================= PASSWORD HASH =================
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
+};
+
+// ================= MODEL EXPORT =================
+const User =
+  mongoose.models.User || mongoose.model("User", userSchema);
+
+export default User;
