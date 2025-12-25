@@ -39,7 +39,7 @@ export const registerUser = async (req, res) => {
         const date = now.getDate();
 
         const isXmasBonanza = month === 11 && date >= 24 && date <= 26;
-        const bonusPoints = isXmasBonanza ? 1500 : 300;
+        const bonusPoints = isXmasBonanza ? 1500 : 1500;
 
         newUser.points += bonusPoints;       // New user bonus
         newUser.referredBy = referrer._id;
