@@ -121,11 +121,31 @@ userSchema.methods.unfollow = async function (targetUser) {
   );
   await this.save();
   await targetUser.save();
-  return {
+  return {dailyLogin: {
+  lastLoginDate: {
+    type: Date,
+    default: null,
+  },
+  monthlyTarget: {
+    type: Number,
+    default: 0,
+  },
+  monthlyEarned: {
+    type: Number,
+    default: 0,
+  },
+  month: {
+    type: Number,
+    default: new Date().getMonth(), // 0–11
+  },
+},
     following: this.following,
     followers: targetUser.followers,
   };
 };
+
+
+
 
 // ================= VIRTUALS =================
 userSchema.virtual("followerCount").get(function () {
