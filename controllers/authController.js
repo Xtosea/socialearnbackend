@@ -33,9 +33,9 @@ export const registerUser = async (req, res) => {
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
-        newUser.points += 300;
+        newUser.points += 1500;
         newUser.referredBy = referrer._id;
-        referrer.points += 300;
+        referrer.points += 1500;
         referrer.referrals.push(newUser._id);
         await referrer.save();
       }
