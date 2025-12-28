@@ -3,7 +3,7 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
-import { authMiddleware } from "../middleware/authMiddleware.js"; // your JWT auth middleware
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -17,7 +17,6 @@ router.post("/register", async (req, res) => {
   try {
     const { username, email, password, country, referralCode } = req.body;
 
-    // Validation
     if (!username || !email || !password) {
       return res.status(400).json({ message: "All fields required" });
     }
@@ -25,11 +24,10 @@ router.post("/register", async (req, res) => {
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ message: "Email already registered" });
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
+    // create user
     const user = await User.create({
       username,
       email,
