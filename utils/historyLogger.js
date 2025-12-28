@@ -4,7 +4,7 @@ export const addHistory = async (userId, taskType, taskId, amount, metadata = {}
   try {
     const entry = await HistoryLog.create({
       user: userId,
-      taskTyp,
+      taskType,
       taskId,
       amount,
       metadata,
