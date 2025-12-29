@@ -1,11 +1,5 @@
-import { updateUserPoints } from "./pointsHelpers.js"; // correct relative path
+import { updateUserPoints } from "./pointsHelpers.js";
 
-/**
- * Handles daily login reward for a user.
- * @param {Object} user - Mongoose user document
- * @param {Object|null} io - Optional Socket.IO instance
- * @returns {Object} Updated dailyLogin info + earned points today
- */
 export const dailyLoginRewardHelper = async (user, io = null) => {
   const today = new Date();
   const currentMonth = today.getMonth();
@@ -13,48 +7,64 @@ export const dailyLoginRewardHelper = async (user, io = null) => {
   if (!user.dailyLogin) {
     user.dailyLogin = {
       lastLoginDate: null,
-      monthlyTarget: Math.floor(Math.random() * (1000 - 50 + 1)) + 50,
+      monthlyTarget: Math.floor(Math.random() * 950) + 50,
       monthlyEarned: 0,
       month: currentMonth,
     };
   }
 
-  // Reset month if needed
+  // reset month
   if (user.dailyLogin.month !== currentMonth) {
     user.dailyLogin.month = currentMonth;
     user.dailyLogin.monthlyEarned = 0;
-    user.dailyLogin.monthlyTarget = Math.floor(Math.random() * (1000 - 50 + 1)) + 50;
     user.dailyLogin.lastLoginDate = null;
+    user.dailyLogin.monthlyTarget = Math.floor(Math.random() * 950) + 50;
   }
 
-  // Check if already claimed today
-  const lastLogin = user.dailyLogin.lastLoginDate ? new Date(user.dailyLogin.lastLoginDate) : null;
-  const isSameDay =
-    lastLogin &&
-    lastLogin.getFullYear() === today.getFullYear() &&
-    lastLogin.getMonth() === today.getMonth() &&
-    lastLogin.getDate() === today.getDate();
+  const last = user.dailyLogin.lastLoginDate;
+  const sameDay =
+    last &&
+    new Date(last).toDateString() === today.toDateString();
 
-  if (isSameDay) {
-    return { dailyLogin: user.dailyLogin, earnedToday: 0, message: "Already claimed today" };
+  if (sameDay) {
+    return {
+      earnedToday: 0,
+      dailyLogin: user.dailyLogin,
+      message: "Already claimed today",
+    };
   }
 
-  // Calculate points for today
-  const daysInMonth = new Date(today.getFullYear(), currentMonth + 1, 0).getDate();
-  const dailyPoints = Math.floor(user.dailyLogin.monthlyTarget / daysInMonth);
+  const daysInMonth = new Date(
+    today.getFullYear(),
+    currentMonth + 1,
+    0
+  ).getDate();
 
-  // Update points using helper
-  await updateUserPoints(user._id, dailyPoints, "daily-login", null, "Daily login reward");
+  const pointsToday = Math.floor(
+    user.dailyLogin.monthlyTarget / daysInMonth
+  );
+
+  await updateUserPoints(
+    user._id,
+    pointsToday,
+    "daily-login",
+    null,
+    "Daily login reward"
+  );
 
   user.dailyLogin.lastLoginDate = today;
-  user.dailyLogin.monthlyEarned += dailyPoints;
-
+  user.dailyLogin.monthlyEarned += pointsToday;
   await user.save();
 
-  // Emit real-time points update if Socket.IO provided
   if (io) {
-    io.to(user._id.toString()).emit("pointsUpdate", { points: user.points });
+    io.to(user._id.toString()).emit("pointsUpdate", {
+      points: user.points,
+    });
   }
 
-  return { dailyLogin: user.dailyLogin, earnedToday: dailyPoints, message: "Reward claimed" };
+  return {
+    earnedToday: pointsToday,
+    dailyLogin: user.dailyLogin,
+    message: "Reward claimed",
+  };
 };
