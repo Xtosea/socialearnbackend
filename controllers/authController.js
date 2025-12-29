@@ -2,7 +2,7 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { updateUserPoints } from "../utils/pointsHelpers.js"; // points + history logging
-import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // Make sure this exists
+import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // daily login helper
 
 // Generate JWT token
 const generateToken = (id, isAdmin = false) =>
@@ -37,7 +37,6 @@ export const registerUser = async (req, res) => {
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
-        // Give points to new user
         await updateUserPoints({
           user: newUser,
           amount: 1500,
@@ -47,7 +46,6 @@ export const registerUser = async (req, res) => {
           metadata: { referrerId: referrer._id },
         });
 
-        // Give points to referrer
         await updateUserPoints({
           user: referrer,
           amount: 1500,
@@ -114,11 +112,10 @@ export const loginUser = async (req, res) => {
       return res.status(403).json({ message: "Access denied. Admins only." });
 
     // ================= AUTOMATIC DAILY LOGIN REWARD =================
-    let dailyLogin = user.dailyLogin || null;
+    let dailyLogin = null;
     try {
-      // Call helper function to claim daily login
-      const dailyResult = await dailyLoginRewardHelper(user, req);
-      dailyLogin = dailyResult.dailyLogin;
+      const io = req.app.get("io");
+      dailyLogin = await dailyLoginRewardHelper(user, io);
     } catch (err) {
       console.error("Daily login reward error:", err.message);
     }
@@ -134,7 +131,7 @@ export const loginUser = async (req, res) => {
       dob: user.dob,
       isAdmin: user.isAdmin,
       token: generateToken(user._id, user.isAdmin),
-      dailyLogin, // Send daily login info to frontend
+      dailyLogin,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -145,9 +142,30 @@ export const loginUser = async (req, res) => {
 // ================= GET CURRENT USER =================
 export const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user);
+
+    // Automatic daily login reward on /me
+    let dailyLogin = null;
+    try {
+      const io = req.app.get("io");
+      dailyLogin = await dailyLoginRewardHelper(user, io);
+    } catch (err) {
+      console.error("Daily login reward error:", err.message);
+    }
+
+    res.json({
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      country: user.country,
+      points: user.points,
+      referralCode: user.referralCode,
+      bio: user.bio,
+      dob: user.dob,
+      isAdmin: user.isAdmin,
+      dailyLogin,
+    });
   } catch (err) {
     console.error("Get current user error:", err);
     res.status(500).json({ message: "Server error" });
