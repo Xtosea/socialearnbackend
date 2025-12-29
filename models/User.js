@@ -47,11 +47,27 @@ const userSchema = new mongoose.Schema(
 
     // ================= DAILY LOGIN REWARD =================
     dailyLogin: {
-      lastLoginDate: { type: Date, default: null },
-      monthlyTarget: { type: Number, default: 0 },
-      monthlyEarned: { type: Number, default: 0 },
-      month: { type: Number, default: new Date().getMonth() },
-    },
+  month: {
+    type: Number, // 0–11
+    default: new Date().getMonth(),
+  },
+  year: {
+    type: Number,
+    default: new Date().getFullYear(),
+  },
+  monthlyTarget: {
+    type: Number,
+    default: 0,
+  },
+  claimedDays: {
+    type: [Number], // e.g. [1,2,4,7]
+    default: [],
+  },
+  monthlyEarned: {
+    type: Number,
+    default: 0,
+  },
+},
 
     // ================= SOCIAL =================
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
