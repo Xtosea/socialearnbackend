@@ -11,13 +11,15 @@ const generateToken = (id, isAdmin = false) =>
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
   let { username, email, password, country, referralCode } = req.body;
+
   username = username?.trim();
   email = email?.trim().toLowerCase();
   password = password?.trim();
   country = country?.trim();
 
-  if (!username || !email || !password || !country)
+  if (!username || !email || !password || !country) {
     return res.status(400).json({ message: "All fields are required" });
+  }
 
   try {
     // Check if user exists
@@ -27,52 +29,70 @@ export const registerUser = async (req, res) => {
         { username: new RegExp(`^${username}$`, "i") },
       ],
     });
-    if (exists) return res.status(400).json({ message: "User already exists" });
+    if (exists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
-    // Create new user
-    const newUser = new User({ username, email, password, country, points: 0 });
+    // Create user
+    const newUser = new User({
+      username,
+      email,
+      password,
+      country,
+      points: 0,
+    });
+
     newUser.referralCode = newUser._id.toString().slice(-6);
 
-    // Handle referral code
+    let referrer = null;
+
+    // ================= REFERRAL HANDLING =================
     if (referralCode) {
-      const referrer = await User.findOne({ referralCode });
+      referrer = await User.findOne({ referralCode });
       if (referrer) {
-        await updateUserPoints({
-          user: newUser,
-          amount: 1500,
-          taskType: "referral-bonus",
-          taskId: null,
-          description: `Referral bonus for using code ${referralCode}`,
-          metadata: { referrerId: referrer._id },
-        });
-
-        await updateUserPoints({
-          user: referrer,
-          amount: 1500,
-          taskType: "referral-bonus",
-          taskId: null,
-          description: `Referral bonus for referring ${newUser.username}`,
-          metadata: { referredUserId: newUser._id },
-        });
-
         newUser.referredBy = referrer._id;
-        referrer.referrals.push(newUser._id);
-        await referrer.save();
       }
     }
 
+    // SAVE USER FIRST (IMPORTANT)
     await newUser.save();
 
-    // Emit Socket.IO updates if available
+    // ================= REFERRAL REWARDS =================
+    if (referrer) {
+      await updateUserPoints(
+        newUser._id,
+        1500,
+        "referral-bonus",
+        null,
+        `Referral bonus for using code ${referralCode}`,
+        { referrerId: referrer._id }
+      );
+
+      await updateUserPoints(
+        referrer._id,
+        1500,
+        "referral-bonus",
+        null,
+        `Referral bonus for referring ${newUser.username}`,
+        { referredUserId: newUser._id }
+      );
+    }
+
+    // ================= SOCKET.IO UPDATES =================
     const io = req.app.get("io");
     if (io) {
-      io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
-      if (newUser.referredBy) {
-        const referrer = await User.findById(newUser.referredBy);
-        io.to(referrer._id.toString()).emit("pointsUpdate", { points: referrer.points });
+      io.to(newUser._id.toString()).emit("pointsUpdate", {
+        points: newUser.points,
+      });
+
+      if (referrer) {
+        io.to(referrer._id.toString()).emit("pointsUpdate", {
+          points: referrer.points,
+        });
       }
     }
 
+    // ================= RESPONSE =================
     res.status(201).json({
       _id: newUser._id,
       username: newUser.username,
