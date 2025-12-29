@@ -2,13 +2,13 @@
 import { updateUserPoints } from "./pointsHelpers.js";
 
 /**
- * Handles daily login rewards:
- * - Awards points if user hasn't logged in today
+ * Handles daily login reward:
+ * - Gives points if not already claimed today
  * - Resets monthly earned points if a new month starts
- * - Emits Socket.IO points updates if io is passed
- * @param {Object} user - Mongoose User document
- * @param {Object} [io] - Optional Socket.IO instance
- * @returns {Object} dailyLogin info
+ * - Emits real-time points update if Socket.IO instance is passed
+ * @param {Object} user - Mongoose user document
+ * @param {Object|null} io - Optional Socket.IO server instance
+ * @returns {Object} Updated dailyLogin info
  */
 export const dailyLoginRewardHelper = async (user, io = null) => {
   if (!user.dailyLogin) {
@@ -23,7 +23,6 @@ export const dailyLoginRewardHelper = async (user, io = null) => {
   const lastLogin = user.dailyLogin.lastLoginDate ? new Date(user.dailyLogin.lastLoginDate) : null;
   const today = new Date();
 
-  // Compare only the date portion
   const isSameDay =
     lastLogin &&
     lastLogin.getFullYear() === today.getFullYear() &&
@@ -31,12 +30,12 @@ export const dailyLoginRewardHelper = async (user, io = null) => {
     lastLogin.getDate() === today.getDate();
 
   if (!isSameDay) {
-    const pointsToAdd = 10; // Daily points
+    const pointsToAdd = 10; // Daily login points
 
-    // Update user's points and history
+    // Update points using helper
     await updateUserPoints(user._id, pointsToAdd, "Daily login reward");
 
-    // Update daily login info
+    // Update dailyLogin info
     user.dailyLogin.lastLoginDate = today;
     if (user.dailyLogin.month !== today.getMonth()) {
       user.dailyLogin.month = today.getMonth();
