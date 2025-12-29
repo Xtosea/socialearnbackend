@@ -13,6 +13,66 @@ export const dailyLoginRewardHelper = async (user, io = null) => {
     };
   }
 
+
+export const dailyLoginRewardHelper = async (user, io = null) => {
+  const today = new Date();
+  const day = today.getDate();
+  const month = today.getMonth();
+  const year = today.getFullYear();
+
+  if (
+    !user.dailyLogin ||
+    user.dailyLogin.month !== month ||
+    user.dailyLogin.year !== year
+  ) {
+    user.dailyLogin = {
+      month,
+      year,
+      monthlyTarget: Math.floor(Math.random() * 900) + 100,
+      claimedDays: [],
+      monthlyEarned: 0,
+    };
+  }
+
+  // Already claimed today
+  if (user.dailyLogin.claimedDays.includes(day)) {
+    return {
+      earnedToday: 0,
+      dailyLogin: user.dailyLogin,
+      message: "Already claimed today",
+    };
+  }
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dailyPoints = Math.floor(
+    user.dailyLogin.monthlyTarget / daysInMonth
+  );
+
+  await updateUserPoints(
+    user._id,
+    dailyPoints,
+    "daily-login",
+    null,
+    `Daily login reward for day ${day}`
+  );
+
+  user.dailyLogin.claimedDays.push(day);
+  user.dailyLogin.monthlyEarned += dailyPoints;
+  await user.save();
+
+  if (io) {
+    io.to(user._id.toString()).emit("pointsUpdate", {
+      points: user.points,
+    });
+  }
+
+  return {
+    earnedToday: dailyPoints,
+    dailyLogin: user.dailyLogin,
+    message: "Reward claimed",
+  };
+};
+
   // reset month
   if (user.dailyLogin.month !== currentMonth) {
     user.dailyLogin.month = currentMonth;
