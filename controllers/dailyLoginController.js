@@ -42,9 +42,12 @@ export const dailyLoginReward = async (req, res) => {
       user.dailyLogin.lastLoginDate &&
       isSameDay(user.dailyLogin.lastLoginDate, today)
     ) {
-      return res.status(400).json({
-        message: "Daily login reward already claimed",
-      });
+      return res.status(200).json({
+  message: "Daily login reward already claimed",
+  earnedToday: 0,
+  newPoints: user.points,
+  dailyLogin: user.dailyLogin,
+});
     }
 
     const daysInMonth = new Date(
@@ -80,11 +83,11 @@ export const dailyLoginReward = async (req, res) => {
     await user.save();
 
     res.json({
-      message: "Daily login reward claimed",
-      earnedToday: dailyPoints,
-      monthlyEarned: user.dailyLogin.monthlyEarned,
-      monthlyTarget: user.dailyLogin.monthlyTarget,
-    });
+  message: "Daily login reward claimed",
+  earnedToday: dailyPoints,
+  newPoints: user.points,          // ✅ REQUIRED
+  dailyLogin: user.dailyLogin,     // ✅ REQUIRED
+});
   } catch (err) {
     console.error("Daily login error:", err);
     res.status(500).json({ message: "Server error" });
