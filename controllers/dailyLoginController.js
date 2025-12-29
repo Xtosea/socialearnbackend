@@ -12,10 +12,20 @@ export const dailyLoginReward = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
 
+    // Initialize dailyLogin if missing
+    if (!user.dailyLogin) {
+      user.dailyLogin = {
+        lastLoginDate: null,
+        monthlyTarget: 0,
+        monthlyEarned: 0,
+        month: new Date().getMonth(),
+      };
+    }
+
     const today = new Date();
     const currentMonth = today.getMonth();
 
-    // 🔄 MONTH RESET
+    // Reset monthly progress
     if (user.dailyLogin.month !== currentMonth) {
       user.dailyLogin.month = currentMonth;
       user.dailyLogin.monthlyEarned = 0;
@@ -24,32 +34,52 @@ export const dailyLoginReward = async (req, res) => {
       user.dailyLogin.lastLoginDate = null;
     }
 
-    // ❌ ALREADY LOGGED IN TODAY
-    if (isSameDay(user.dailyLogin.lastLoginDate, today)) {
+    // Already claimed today
+    if (
+      user.dailyLogin.lastLoginDate &&
+      isSameDay(user.dailyLogin.lastLoginDate, today)
+    ) {
       return res.status(400).json({
         message: "Daily login reward already claimed",
       });
     }
 
-    // 📆 DAYS IN CURRENT MONTH
-    const daysInMonth = new Date(
-      today.getFullYear(),
-      currentMonth + 1,
-      0
-    ).getDate();
+    // Calculate daily points
+    const daysInMonth = new Date(today.getFullYear(), currentMonth + 1, 0).getDate();
+    const dailyPoints = Math.floor(user.dailyLogin.monthlyTarget / daysInMonth);
 
-    // 🎯 POINTS PER LOGIN DAY
-    const dailyPoints = Math.floor(
-      user.dailyLogin.monthlyTarget / daysInMonth
-    );
-
-    // 🛑 CAP CHECK
+    // Check monthly cap
     if (user.dailyLogin.monthlyEarned >= user.dailyLogin.monthlyTarget) {
       return res.json({
         message: "Monthly login reward completed",
         monthlyTarget: user.dailyLogin.monthlyTarget,
       });
     }
+
+    // ✅ Apply points using helper to log history
+    await updateUserPoints({
+      user,
+      amount: dailyPoints,
+      taskType: "daily-login",
+      taskId: null,
+      description: "Daily login reward",
+    });
+
+    // Update daily login info
+    user.dailyLogin.lastLoginDate = today;
+    await user.save();
+
+    res.json({
+      message: "Daily login reward claimed",
+      earnedToday: dailyPoints,
+      monthlyEarned: user.dailyLogin.monthlyEarned,
+      monthlyTarget: user.dailyLogin.monthlyTarget,
+    });
+  } catch (err) {
+    console.error("Daily login error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
     // ✅ APPLY POINTS
     user.points += dailyPoints;
