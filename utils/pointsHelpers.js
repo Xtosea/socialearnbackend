@@ -1,43 +1,61 @@
-// utils/dailyLoginHelper.js
-import { updateUserPoints } from "./pointsHelpers.js";
+// utils/pointsHelpers.js
+import User from "../models/User.js";
 
-export const dailyLoginRewardHelper = async (user) => {
-  if (!user.dailyLogin) {
-    user.dailyLogin = {
-      lastLoginDate: null,
-      monthlyTarget: 0,
-      monthlyEarned: 0,
-      month: new Date().getMonth(),
-    };
-  }
+/**
+ * Adds points to a user and logs the action in their history
+ * @param {String|ObjectId} userId - The user's _id
+ * @param {Number} amount - Points to add
+ * @param {String} taskType - e.g., "Daily login reward", "Referral bonus"
+ * @param {String|null} taskId - Optional task id
+ * @param {String} description - Optional description
+ * @param {Object} metadata - Optional metadata object
+ * @returns {Object} Updated user document
+ */
+export const updateUserPoints = async (
+  userId,
+  amount,
+  taskType,
+  taskId = null,
+  description = "",
+  metadata = {}
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
 
-  const lastLogin = user.dailyLogin.lastLoginDate ? new Date(user.dailyLogin.lastLoginDate) : null;
-  const today = new Date();
+  // Add points
+  user.points += amount;
 
-  const isSameDay =
-    lastLogin &&
-    lastLogin.getFullYear() === today.getFullYear() &&
-    lastLogin.getMonth() === today.getMonth() &&
-    lastLogin.getDate() === today.getDate();
+  // Log in history (make sure your User schema has a 'history' array)
+  if (!user.history) user.history = [];
+  user.history.push({
+    taskType,
+    taskId,
+    amount,
+    description,
+    metadata,
+    date: new Date(),
+  });
 
-  if (!isSameDay) {
-    const pointsToAdd = 10;
+  await user.save();
+  return user;
+};
 
-    await updateUserPoints(user._id, pointsToAdd, "Daily login reward");
+/**
+ * Optional: deduct points
+ */
+export const deductUserPoints = async (userId, amount, description = "") => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
 
-    user.dailyLogin.lastLoginDate = today;
-    if (user.dailyLogin.month !== today.getMonth()) {
-      user.dailyLogin.month = today.getMonth();
-      user.dailyLogin.monthlyEarned = 0;
-    }
-    user.dailyLogin.monthlyEarned += pointsToAdd;
+  user.points -= amount;
+  if (!user.history) user.history = [];
+  user.history.push({
+    taskType: "Deduction",
+    amount: -amount,
+    description,
+    date: new Date(),
+  });
 
-    await user.save();
-
-    console.log("Daily login reward given:", pointsToAdd);
-  } else {
-    console.log("Daily login skipped: already claimed today");
-  }
-
-  return user.dailyLogin;
+  await user.save();
+  return user;
 };
