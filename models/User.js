@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ================= DAILY LOGIN =================
+    // ================= DAILY LOGIN REWARD =================
     dailyLogin: {
       lastLoginDate: { type: Date, default: null },
       monthlyTarget: { type: Number, default: 0 },
@@ -77,7 +77,9 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+//
 // ================= PASSWORD =================
+//
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
@@ -89,7 +91,9 @@ userSchema.methods.matchPassword = function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-// ================= POINTS =================
+//
+// ================= POINTS METHODS =================
+//
 userSchema.methods.addPoints = async function (amount) {
   this.points = Math.max(0, this.points + amount);
   await this.save();
@@ -102,7 +106,9 @@ userSchema.methods.deductPoints = async function (amount) {
   return this.points;
 };
 
+//
 // ================= FOLLOW SYSTEM =================
+//
 userSchema.methods.follow = async function (targetUser) {
   if (!this.following.includes(targetUser._id)) {
     this.following.push(targetUser._id);
@@ -123,13 +129,17 @@ userSchema.methods.unfollow = async function (targetUser) {
   await targetUser.save();
 };
 
+//
 // ================= VIRTUALS =================
+//
 userSchema.virtual("followerCount").get(function () {
   return this.followers.length;
 });
+
 userSchema.virtual("followingCount").get(function () {
   return this.following.length;
 });
+
 userSchema.virtual("referralCount").get(function () {
   return this.referrals.length;
 });
