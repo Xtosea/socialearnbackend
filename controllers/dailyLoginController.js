@@ -11,7 +11,7 @@ const isSameDay = (d1, d2) =>
 export const dailyLoginReward = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: "User no found" });
 
     const today = new Date();
     const currentMonth = today.getMonth();
