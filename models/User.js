@@ -45,28 +45,16 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
+    
     // ================= DAILY LOGIN REWARD =================
-    dailyLogin: {
-  month: {
-    type: Number, // 0–11
-    default: new Date().getMonth(),
-  },
-  year: {
-    type: Number,
-    default: new Date().getFullYear(),
-  },
-  monthlyTarget: {
-    type: Number,
-    default: 0,
-  },
-  claimedDays: {
-    type: [Number], // e.g. [1,2,4,7]
-    default: [],
-  },
-  monthlyEarned: {
-    type: Number,
-    default: 0,
-  },
+dailyLogin: {
+  lastLoginDate: { type: Date, default: null },
+  month: { type: Number, default: new Date().getMonth() },
+  year: { type: Number, default: new Date().getFullYear() },
+  monthlyTarget: { type: Number, default: 0 },
+  monthlyEarned: { type: Number, default: 0 },
+  streak: { type: Number, default: 0 },
+  claimedDays: { type: [Number], default: [] },
 },
 
     // ================= SOCIAL =================
