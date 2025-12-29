@@ -86,7 +86,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/history", historyRoutes);
-app.use(express.json());
+
 app.use("/api/contact", contactRoutes);
 app.use("/api/rewards", dailyLoginRoutes);
 
