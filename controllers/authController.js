@@ -1,9 +1,11 @@
+// controllers/authController.js
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { updateUserPoints } from "../utils/pointsHelpers.js"; // points + history logging
+import { updateUserPoints } from "../utils/pointsHelpers.js";
+import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // helper version of dailyLoginReward
 
-// Generate JWT token
+// ================= JWT TOKEN =================
 const generateToken = (id, isAdmin = false) =>
   jwt.sign({ id, isAdmin }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
@@ -36,7 +38,6 @@ export const registerUser = async (req, res) => {
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
-        // Give points to new user
         await updateUserPoints({
           user: newUser,
           amount: 1500,
@@ -46,7 +47,6 @@ export const registerUser = async (req, res) => {
           metadata: { referrerId: referrer._id },
         });
 
-        // Give points to referrer
         await updateUserPoints({
           user: referrer,
           amount: 1500,
@@ -109,8 +109,15 @@ export const loginUser = async (req, res) => {
     const match = await user.matchPassword(password);
     if (!match) return res.status(400).json({ message: "Invalid credentials" });
 
-    if (adminOnly && !user.isAdmin) {
+    if (adminOnly && !user.isAdmin)
       return res.status(403).json({ message: "Access denied. Admins only." });
+
+    // ===== AUTOMATIC DAILY LOGIN =====
+    try {
+      const dailyLoginResult = await dailyLoginRewardHelper(user, req);
+      // This helper directly updates points + user.dailyLogin
+    } catch (err) {
+      console.error("Daily login reward error:", err.message);
     }
 
     res.json({
@@ -124,6 +131,7 @@ export const loginUser = async (req, res) => {
       dob: user.dob,
       isAdmin: user.isAdmin,
       token: generateToken(user._id, user.isAdmin),
+      dailyLogin: user.dailyLogin,
     });
   } catch (err) {
     console.error("Login error:", err);
