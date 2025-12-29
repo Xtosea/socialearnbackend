@@ -1,4 +1,3 @@
-// controllers/dailyLoginController.js
 import User from "../models/User.js";
 import { updateUserPoints } from "../utils/pointsHelpers.js";
 
@@ -12,9 +11,7 @@ const isSameDay = (d1, d2) =>
 
 export const dailyLoginReward = async (req, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -22,30 +19,18 @@ export const dailyLoginReward = async (req, res) => {
     const today = new Date();
     const currentMonth = today.getMonth();
 
-    // Initialize dailyLogin object if missing
     if (!user.dailyLogin) {
-      user.dailyLogin = {
-        lastLoginDate: null,
-        monthlyTarget: 0,
-        monthlyEarned: 0,
-        month: currentMonth,
-      };
+      user.dailyLogin = { lastLoginDate: null, monthlyTarget: 0, monthlyEarned: 0, month: currentMonth };
     }
 
-    // Reset monthly stats if new month
     if (user.dailyLogin.month !== currentMonth) {
       user.dailyLogin.month = currentMonth;
       user.dailyLogin.monthlyEarned = 0;
-      user.dailyLogin.monthlyTarget =
-        Math.floor(Math.random() * (1000 - 50 + 1)) + 50;
+      user.dailyLogin.monthlyTarget = Math.floor(Math.random() * (1000 - 50 + 1)) + 50;
       user.dailyLogin.lastLoginDate = null;
     }
 
-    // Already claimed today
-    if (
-      user.dailyLogin.lastLoginDate &&
-      isSameDay(user.dailyLogin.lastLoginDate, today)
-    ) {
+    if (user.dailyLogin.lastLoginDate && isSameDay(user.dailyLogin.lastLoginDate, today)) {
       return res.status(200).json({
         message: "Daily login reward already claimed",
         earnedToday: 0,
@@ -57,7 +42,6 @@ export const dailyLoginReward = async (req, res) => {
     const daysInMonth = new Date(today.getFullYear(), currentMonth + 1, 0).getDate();
     const dailyPoints = Math.floor(user.dailyLogin.monthlyTarget / daysInMonth);
 
-    // Check monthly cap
     if (user.dailyLogin.monthlyEarned >= user.dailyLogin.monthlyTarget) {
       return res.status(200).json({
         message: "Monthly login reward completed",
@@ -67,7 +51,6 @@ export const dailyLoginReward = async (req, res) => {
       });
     }
 
-    // Add points
     await updateUserPoints({
       user,
       amount: dailyPoints,
@@ -76,7 +59,6 @@ export const dailyLoginReward = async (req, res) => {
       req,
     });
 
-    // Update dailyLogin info
     user.dailyLogin.lastLoginDate = today;
     user.dailyLogin.monthlyEarned += dailyPoints;
 
