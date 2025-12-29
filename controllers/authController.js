@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { updateUserPoints } from "../utils/pointsHelpers.js"; // points + history logging
+import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // Make sure this exists
 
 // Generate JWT token
 const generateToken = (id, isAdmin = false) =>
@@ -109,8 +110,17 @@ export const loginUser = async (req, res) => {
     const match = await user.matchPassword(password);
     if (!match) return res.status(400).json({ message: "Invalid credentials" });
 
-    if (adminOnly && !user.isAdmin) {
+    if (adminOnly && !user.isAdmin)
       return res.status(403).json({ message: "Access denied. Admins only." });
+
+    // ================= AUTOMATIC DAILY LOGIN REWARD =================
+    let dailyLogin = user.dailyLogin || null;
+    try {
+      // Call helper function to claim daily login
+      const dailyResult = await dailyLoginRewardHelper(user, req);
+      dailyLogin = dailyResult.dailyLogin;
+    } catch (err) {
+      console.error("Daily login reward error:", err.message);
     }
 
     res.json({
@@ -124,6 +134,7 @@ export const loginUser = async (req, res) => {
       dob: user.dob,
       isAdmin: user.isAdmin,
       token: generateToken(user._id, user.isAdmin),
+      dailyLogin, // Send daily login info to frontend
     });
   } catch (err) {
     console.error("Login error:", err);
