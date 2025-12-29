@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ================= DAILY LOGIN REWARD =================
+    // ================= DAILY LOGIN =================
     dailyLogin: {
       lastLoginDate: { type: Date, default: null },
       monthlyTarget: { type: Number, default: 0 },
@@ -77,9 +77,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-//
 // ================= PASSWORD =================
-//
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
@@ -91,9 +89,7 @@ userSchema.methods.matchPassword = function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-//
-// ================= POINTS METHODS =================
-//
+// ================= POINTS =================
 userSchema.methods.addPoints = async function (amount) {
   this.points = Math.max(0, this.points + amount);
   await this.save();
@@ -106,9 +102,7 @@ userSchema.methods.deductPoints = async function (amount) {
   return this.points;
 };
 
-//
 // ================= FOLLOW SYSTEM =================
-//
 userSchema.methods.follow = async function (targetUser) {
   if (!this.following.includes(targetUser._id)) {
     this.following.push(targetUser._id);
@@ -129,180 +123,15 @@ userSchema.methods.unfollow = async function (targetUser) {
   await targetUser.save();
 };
 
-//
 // ================= VIRTUALS =================
-//
 userSchema.virtual("followerCount").get(function () {
   return this.followers.length;
 });
-
 userSchema.virtual("followingCount").get(function () {
   return this.following.length;
 });
-
 userSchema.virtual("referralCount").get(function () {
   return this.referrals.length;
-});
-
-const User = mongoose.model("User", userSchema);
-export default User; "mongoose";
-import bcrypt from "bcryptjs";
-
-const userSchema = new mongoose.Schema(
-  {
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-      minlength: 4,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    country: {
-      type: String,
-    },
-    isEmailVerified: {
-      type: Boolean,
-      default: false,
-    },
-    emailVerificationToken: {
-      type: String,
-    },
-    role: {
-      type: String,
-      enum: ["user", "admin"],
-      default: "user",
-    },
-    bio: {
-      type: String,
-      default: "",
-    },
-    dob: {
-      type: String,
-      default: "",
-    },
-    profilePicture: {
-      type: String,
-      default: "",
-    },
-    points: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    referrals: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    referredBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    referralCode: {
-      type: String,
-      unique: true,
-      sparse: true, // ✅ Important: allows multiple null values
-    },
-  },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
-);
-
-// ================= PASSWORD =================
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return bcrypt.compare(enteredPassword, this.password);
-};
-
-// ================= POINTS =================
-userSchema.methods.addPoints = async function (amount) {
-  this.points += amount;
-  if (this.points < 0) this.points = 0;
-  await this.save();
-  return this.points;
-};
-
-userSchema.methods.deductPoints = async function (amount) {
-  this.points -= amount;
-  if (this.points < 0) this.points = 0;
-  await this.save();
-  return this.points;
-};
-
-// ================= FOLLOW SYSTEM =================
-userSchema.methods.follow = async function (targetUser) {
-  if (!this.following.includes(targetUser._id)) {
-    this.following.push(targetUser._id);
-    targetUser.followers.push(this._id);
-    await this.save();
-    await targetUser.save();
-  }
-  return {
-    following: this.following,
-    followers: targetUser.followers,
-  };
-};
-
-userSchema.methods.unfollow = async function (targetUser) {
-  this.following = this.following.filter(
-    (id) => id.toString() !== targetUser._id.toString()
-  );
-  targetUser.followers = targetUser.followers.filter(
-    (id) => id.toString() !== this._id.toString()
-  );
-  await this.save();
-  await targetUser.save();
-  return {dailyLogin: {
-  lastLoginDate: {
-    type: Date,
-    default: null,
-  },
-  monthlyTarget: {
-    type: Number,
-    default: 0,
-  },
-  monthlyEarned: {
-    type: Number,
-    default: 0,
-  },
-  month: {
-    type: Number,
-    default: new Date().getMonth(), // 0–11
-  },
-},
-    following: this.following,
-    followers: targetUser.followers,
-  };
-};
-
-
-
-
-// ================= VIRTUALS =================
-userSchema.virtual("followerCount").get(function () {
-  return this.followers?.length || 0;
-});
-userSchema.virtual("followingCount").get(function () {
-  return this.following?.length || 0;
-});
-userSchema.virtual("referralCount").get(function () {
-  return this.referrals?.length || 0;
 });
 
 const User = mongoose.model("User", userSchema);
