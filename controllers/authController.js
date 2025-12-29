@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { updateUserPoints } from "../utils/pointsHelpers.js";
-import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // helper version of dailyLoginReward
+
 
 // ================= JWT TOKEN =================
 const generateToken = (id, isAdmin = false) =>
