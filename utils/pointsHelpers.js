@@ -1,35 +1,43 @@
-import HistoryLog from "../models/HistoryLog.js";
+// utils/dailyLoginHelper.js
+import { updateUserPoints } from "./pointsHelpers.js";
 
-export const updateUserPoints = async ({
-  user,
-  amount,
-  taskType,
-  taskId = null,
-  description,
-  req = null,
-}) => {
-  if (!user || !amount) throw new Error("Invalid points update");
-
-  // Add points
-  user.points = (user.points || 0) + amount;
-  await user.save();
-
-  // Save history
-  await HistoryLog.create({
-    user: user._id,
-    taskType,
-    taskId,
-    amount,
-    description,
-  });
-
-  // Optional realtime update
-  if (req?.app?.get("io")) {
-    req.app
-      .get("io")
-      .to(user._id.toString())
-      .emit("pointsUpdate", { points: user.points });
+export const dailyLoginRewardHelper = async (user) => {
+  if (!user.dailyLogin) {
+    user.dailyLogin = {
+      lastLoginDate: null,
+      monthlyTarget: 0,
+      monthlyEarned: 0,
+      month: new Date().getMonth(),
+    };
   }
 
-  return user.points;
+  const lastLogin = user.dailyLogin.lastLoginDate ? new Date(user.dailyLogin.lastLoginDate) : null;
+  const today = new Date();
+
+  const isSameDay =
+    lastLogin &&
+    lastLogin.getFullYear() === today.getFullYear() &&
+    lastLogin.getMonth() === today.getMonth() &&
+    lastLogin.getDate() === today.getDate();
+
+  if (!isSameDay) {
+    const pointsToAdd = 10;
+
+    await updateUserPoints(user._id, pointsToAdd, "Daily login reward");
+
+    user.dailyLogin.lastLoginDate = today;
+    if (user.dailyLogin.month !== today.getMonth()) {
+      user.dailyLogin.month = today.getMonth();
+      user.dailyLogin.monthlyEarned = 0;
+    }
+    user.dailyLogin.monthlyEarned += pointsToAdd;
+
+    await user.save();
+
+    console.log("Daily login reward given:", pointsToAdd);
+  } else {
+    console.log("Daily login skipped: already claimed today");
+  }
+
+  return user.dailyLogin;
 };
