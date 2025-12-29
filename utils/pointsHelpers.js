@@ -1,45 +1,87 @@
-// utils/pointsHelpers.js
-import History from "../models/HistoryLog.js";
+// utils/dailyLoginHelper.js
+import User from "../models/User.js";
+import { updateUserPoints } from "./pointsHelpers.js";
+
+// Helper to check same day
+const isSameDay = (d1, d2) =>
+  d1 &&
+  d2 &&
+  d1.getFullYear() === d2.getFullYear() &&
+  d1.getMonth() === d2.getMonth() &&
+  d1.getDate() === d2.getDate();
 
 /**
- * Update user points and log history, then emit socket update
- * @param {Object} params
- * @param {Object} params.user - Mongoose User document
- * @param {number} params.amount - Points to add/subtract
- * @param {string} params.taskType - e.g., "video-view", "daily-login"
- * @param {ObjectId} [params.taskId] - Optional Task reference
- * @param {string} [params.description] - Description
- * @param {Object} [params.metadata] - Extra metadata
- * @param {Object} [params.req] - Express req object to access io
+ * Handles daily login reward for a user
+ * @param {Object} user - Mongoose User document
+ * @param {Object} req - Express request (used for Socket.IO)
+ * @returns {Object} daily reward info
  */
-export const updateUserPoints = async ({
-  user,
-  amount,
-  taskType,
-  taskId = null,
-  description = "",
-  metadata = {},
-  req = null,
-}) => {
-  user.points += amount;
-  await user.save();
-
-  const historyEntry = await History.create({
-    user: user._id,
-    taskType,
-    taskId,
-    amount,
-    description,
-    metadata,
-  });
-
-  // Emit socket update if req.app.get('io') is available
-  if (req?.app?.get("io")) {
-    req.app.get("io").to(user._id.toString()).emit("pointsUpdate", {
-      points: user.points,
-      newEntryId: historyEntry._id,
-    });
+export const dailyLoginRewardHelper = async (user, req) => {
+  // Initialize dailyLogin if missing
+  if (!user.dailyLogin) {
+    user.dailyLogin = {
+      lastLoginDate: null,
+      monthlyTarget: 0,
+      monthlyEarned: 0,
+      month: new Date().getMonth(),
+    };
   }
 
-  return user;
+  const today = new Date();
+  const currentMonth = today.getMonth();
+
+  // Reset monthly progress if new month
+  if (user.dailyLogin.month !== currentMonth) {
+    user.dailyLogin.month = currentMonth;
+    user.dailyLogin.monthlyEarned = 0;
+    user.dailyLogin.monthlyTarget =
+      Math.floor(Math.random() * (1000 - 50 + 1)) + 50; // 50-1000 points/month
+    user.dailyLogin.lastLoginDate = null;
+  }
+
+  // Already claimed today
+  if (user.dailyLogin.lastLoginDate && isSameDay(user.dailyLogin.lastLoginDate, today)) {
+    return {
+      message: "Daily login reward already claimed",
+      earnedToday: 0,
+      monthlyEarned: user.dailyLogin.monthlyEarned,
+      monthlyTarget: user.dailyLogin.monthlyTarget,
+    };
+  }
+
+  // Calculate daily points
+  const daysInMonth = new Date(today.getFullYear(), currentMonth + 1, 0).getDate();
+  const dailyPoints = Math.floor(user.dailyLogin.monthlyTarget / daysInMonth);
+
+  // Check monthly cap
+  if (user.dailyLogin.monthlyEarned >= user.dailyLogin.monthlyTarget) {
+    return {
+      message: "Monthly login reward completed",
+      earnedToday: 0,
+      monthlyEarned: user.dailyLogin.monthlyEarned,
+      monthlyTarget: user.dailyLogin.monthlyTarget,
+    };
+  }
+
+  // Apply points using helper
+  await updateUserPoints({
+    user,
+    amount: dailyPoints,
+    taskType: "daily-login",
+    taskId: null,
+    description: "Daily login reward",
+    req, // emit socket event if needed
+  });
+
+  // Update daily login info
+  user.dailyLogin.monthlyEarned += dailyPoints;
+  user.dailyLogin.lastLoginDate = today;
+  await user.save();
+
+  return {
+    message: "Daily login reward claimed",
+    earnedToday: dailyPoints,
+    monthlyEarned: user.dailyLogin.monthlyEarned,
+    monthlyTarget: user.dailyLogin.monthlyTarget,
+  };
 };
