@@ -15,7 +15,8 @@ import walletRoutes from "./routes/walletRoutes.js";
 import historyRoutes from "./routes/historyRoutes.js";
 //import "./telegramBot.js";
 import contactRoutes from "./routes/contact.js";
-import dailyLoginRoutes from "./routes/dailyLoginRoutes.js";
+import rewardRoutes from "./routes/rewardRoutes.js";
+
 
 dotenv.config();
 
@@ -88,7 +89,7 @@ app.use("/api/wallet", walletRoutes);
 app.use("/api/history", historyRoutes);
 
 app.use("/api/contact", contactRoutes);
-app.use("/api/rewards", dailyLoginRoutes);
+app.use("/api/rewards", rewardRoutes);
 
 // ✅ Root route (for Render health check)
 app.get("/", (req, res) => {
