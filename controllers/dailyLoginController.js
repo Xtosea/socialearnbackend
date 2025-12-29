@@ -1,5 +1,5 @@
 // utils/dailyLoginHelper.js
-import { updateUserPoints } from "./utils/pointsHelpers.js";
+import { updateUserPoints } from "../utils/pointsHelpers.js";
 
 /**
  * Handles daily login reward for a user.
