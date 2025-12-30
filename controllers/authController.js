@@ -11,29 +11,35 @@ const generateToken = (id, isAdmin = false) =>
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
   let { username, email, password, country, referralCode } = req.body;
-let { username, email, password, country, referralCode } = req.body;
-  username = username?.trim();
-  email = email?.trim().toLowerCase();
-  password = password?.trim();
-  country = country?.trim();
 
-  if (!username || !email || !password || !country)
-    return res.status(400).json({ message: "All fields are required" });
+username = username?.trim();
+email = email?.trim().toLowerCase();
+password = password?.trim();
+country = country?.trim();
+referralCode = referralCode?.trim().toUpperCase();
 
-  try {
-    // Check if user exists (username or email)
-    const exists = await User.findOne({
-      $or: [
-        { email: new RegExp(`^${email}$`, "i") },
-        { username: new RegExp(`^${username}$`, "i") },
-      ],
-    });
-    if (exists)
-      return res
-        .status(400)
-        .json({ message: exists.email.toLowerCase() === email ? "Email already exists" : "Username already exists" });
+if (!username || !email || !password || !country) {
+  return res.status(400).json({ message: "All fields are required" });
+}
 
-    // Create user
+// Check if user exists
+const exists = await User.findOne({
+  $or: [
+    { email: new RegExp(`^${email}$`, "i") },
+    { username: new RegExp(`^${username}$`, "i") },
+  ],
+});
+
+if (exists) {
+  return res.status(400).json({
+    message:
+      exists.email.toLowerCase() === email
+        ? "Email already exists"
+        : "Username already exists",
+  });
+}
+
+// Create & save user FIRST
 const newUser = new User({
   username,
   email,
@@ -41,6 +47,8 @@ const newUser = new User({
   country,
   points: 0,
 });
+
+await newUser.save();
 
 // ================= REFERRAL HANDLING =================
 if (referralCode) {
@@ -50,14 +58,12 @@ if (referralCode) {
     return res.status(400).json({ message: "Invalid referral code" });
   }
 
-  // ❌ prevent self-referral
-  if (referrer._id.equals(newUser._id)) {
-    return res.status(400).json({
-      message: "You cannot use your own referral code",
-    });
+  if (referrer.email === email) {
+    return res
+      .status(400)
+      .json({ message: "You cannot use your own referral code" });
   }
 
-  // ✅ reward new user
   await updateUserPoints({
     user: newUser,
     amount: 1500,
@@ -66,7 +72,6 @@ if (referralCode) {
     metadata: { referrerId: referrer._id },
   });
 
-  // ✅ reward referrer
   await updateUserPoints({
     user: referrer,
     amount: 1500,
@@ -78,9 +83,7 @@ if (referralCode) {
   newUser.referredBy = referrer._id;
 
   referrer.referrals = referrer.referrals || [];
-  if (!referrer.referrals.includes(newUser._id)) {
-    referrer.referrals.push(newUser._id);
-  }
+  referrer.referrals.push(newUser._id);
 
   await Promise.all([newUser.save(), referrer.save()]);
 }
