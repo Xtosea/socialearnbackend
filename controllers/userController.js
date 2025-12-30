@@ -2,41 +2,38 @@ import User from "../models/User.js";
 import HistoryLog from "../models/HistoryLog.js";
 import bcrypt from "bcryptjs";
 
-// ================= GET PROFILE =================
+// GET PROFILE
 export const getProfile = async (req, res) => {
   const user = await User.findById(req.user._id).select("-password");
   if (!user) return res.status(404).json({ message: "User not found" });
   res.json(user);
 };
 
-// ================= UPDATE PROFILE =================
+// UPDATE PROFILE
 export const updateProfile = async (req, res) => {
   const user = await User.findById(req.user._id);
   if (!user) return res.status(404).json({ message: "User not found" });
 
   const { username, email, country, password, bio, dob, profilePicture } = req.body;
 
-  if (username !== undefined) user.username = username.trim();
-  if (email !== undefined) user.email = email.trim().toLowerCase();
-  if (country !== undefined) user.country = country.trim();
-  if (bio !== undefined) user.bio = bio;
-  if (dob !== undefined) user.dob = dob;
-  if (profilePicture !== undefined) user.profilePicture = profilePicture;
-
-  if (password) {
-    user.password = await bcrypt.hash(password, 10);
-  }
+  if (username) user.username = username.trim();
+  if (email) user.email = email.trim().toLowerCase();
+  if (country) user.country = country.trim();
+  if (bio) user.bio = bio;
+  if (dob) user.dob = dob;
+  if (profilePicture) user.profilePicture = profilePicture;
+  if (password) user.password = await bcrypt.hash(password, 10);
 
   await user.save();
   res.json({ message: "Profile updated", user });
 };
 
-// ================= FOLLOW =================
+// FOLLOW USER
 export const followUser = async (req, res) => {
   const target = await User.findById(req.params.id);
   const current = await User.findById(req.user._id);
-
   if (!target || !current) return res.status(404).json({ message: "User not found" });
+
   if (target.followers.includes(current._id))
     return res.status(400).json({ message: "Already following" });
 
@@ -56,11 +53,10 @@ export const followUser = async (req, res) => {
   res.json({ message: `Following ${target.username}` });
 };
 
-// ================= UNFOLLOW =================
+// UNFOLLOW USER
 export const unfollowUser = async (req, res) => {
   const target = await User.findById(req.params.id);
   const current = await User.findById(req.user._id);
-
   if (!target || !current) return res.status(404).json({ message: "User not found" });
 
   target.followers.pull(current._id);
@@ -79,13 +75,12 @@ export const unfollowUser = async (req, res) => {
   res.json({ message: `Unfollowed ${target.username}` });
 };
 
-// ================= REFERRALS =================
+// GET REFERRALS
 export const getReferrals = async (req, res) => {
   const user = await User.findById(req.user._id).populate(
     "referrals",
     "username email country points createdAt"
   );
-
   res.json({
     referralCode: user.referralCode,
     referralCount: user.referrals.length,
