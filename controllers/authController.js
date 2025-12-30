@@ -20,24 +20,34 @@ export const registerUser = async (req, res) => {
     return res.status(400).json({ message: "All fields are required" });
 
   try {
-    // Check if user exists
+    // Check if user exists (username or email)
     const exists = await User.findOne({
       $or: [
         { email: new RegExp(`^${email}$`, "i") },
         { username: new RegExp(`^${username}$`, "i") },
       ],
     });
-    if (exists) return res.status(400).json({ message: "User already exists" });
+    if (exists)
+      return res
+        .status(400)
+        .json({ message: exists.email.toLowerCase() === email ? "Email already exists" : "Username already exists" });
 
-    // Create new user
+    // Create user
     const newUser = new User({ username, email, password, country, points: 0 });
-    newUser.referralCode = newUser._id.toString().slice(-6);
 
-    // Handle referral code
+    // Generate unique referral code
+    let code;
+    let existsCode = true;
+    while (existsCode) {
+      code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      existsCode = await User.findOne({ referralCode: code });
+    }
+    newUser.referralCode = code;
+
+    // Handle referral
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
-        // Give points to new user
         await updateUserPoints({
           user: newUser,
           amount: 1500,
@@ -47,7 +57,6 @@ export const registerUser = async (req, res) => {
           metadata: { referrerId: referrer._id },
         });
 
-        // Give points to referrer
         await updateUserPoints({
           user: referrer,
           amount: 1500,
@@ -65,15 +74,9 @@ export const registerUser = async (req, res) => {
 
     await newUser.save();
 
-    // Emit Socket.IO updates if available
+    // Emit Socket.IO updates
     const io = req.app.get("io");
-    if (io) {
-      io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
-      if (newUser.referredBy) {
-        const referrer = await User.findById(newUser.referredBy);
-        io.to(referrer._id.toString()).emit("pointsUpdate", { points: referrer.points });
-      }
-    }
+    if (io) io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
 
     res.status(201).json({
       _id: newUser._id,
