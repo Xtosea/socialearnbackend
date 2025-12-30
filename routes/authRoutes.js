@@ -3,8 +3,7 @@ import {
   registerUser,
   loginUser,
   getCurrentUser,
-  updateProfile,
-} from "../controllers/authController.js";
+ } from "../controllers/authController.js";
 import auth from "../middleware/auth.js";
 
 const router = express.Router();
