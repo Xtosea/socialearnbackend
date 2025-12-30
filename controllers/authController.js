@@ -75,10 +75,12 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// LOGIN
+// ================= LOGIN USER =================
 export const loginUser = async (req, res) => {
   const { identifier, password, adminOnly } = req.body;
-  if (!identifier || !password) return res.status(400).json({ message: "Credentials required" });
+
+  if (!identifier || !password)
+    return res.status(400).json({ message: "Email/Username and password required" });
 
   try {
     const user = await User.findOne({
@@ -88,12 +90,14 @@ export const loginUser = async (req, res) => {
       ],
     });
 
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    if (adminOnly && !user.isAdmin)
-      return res.status(403).json({ message: "Admins only" });
+    const match = await user.matchPassword(password);
+    if (!match) return res.status(400).json({ message: "Invalid credentials" });
+
+    if (adminOnly && !user.isAdmin) {
+      return res.status(403).json({ message: "Access denied. Admins only." });
+    }
 
     const dailyLogin = await dailyLoginRewardHelper(user, req.app.get("io"));
 
