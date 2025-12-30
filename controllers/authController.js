@@ -1,98 +1,77 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { updateUserPoints } from "../utils/pointsHelpers.js"; // points + history logging
-import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js"; // daily login helper
+import { updateUserPoints } from "../utils/pointsHelpers.js";
+import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js";
 
-// Generate JWT token
+// ================= JWT =================
 const generateToken = (id, isAdmin = false) =>
   jwt.sign({ id, isAdmin }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
-// ================= REGISTER USER =================
+// ================= REGISTER =================
 export const registerUser = async (req, res) => {
   let { username, email, password, country, referralCode } = req.body;
-
-  username = username?.trim();
-  email = email?.trim().toLowerCase();
-  password = password?.trim();
-  country = country?.trim();
 
   if (!username || !email || !password || !country) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
+  username = username.trim();
+  email = email.trim().toLowerCase();
+  password = password.trim();
+  country = country.trim();
+
   try {
-    // Check if user exists
     const exists = await User.findOne({
       $or: [
         { email: new RegExp(`^${email}$`, "i") },
         { username: new RegExp(`^${username}$`, "i") },
       ],
     });
+
     if (exists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Create user
-    const newUser = new User({
+    const newUser = await User.create({
       username,
       email,
       password,
       country,
-      points: 0,
+      referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
     });
 
-    newUser.referralCode = newUser._id.toString().slice(-6);
-
-    let referrer = null;
-
-    // ================= REFERRAL HANDLING =================
+    // ================= REFERRAL =================
     if (referralCode) {
-      referrer = await User.findOne({ referralCode });
+      const referrer = await User.findOne({ referralCode });
+
       if (referrer) {
         newUser.referredBy = referrer._id;
-      }
-    }
+        await newUser.save();
 
-    // SAVE USER FIRST (IMPORTANT)
-    await newUser.save();
-
-    // ================= REFERRAL REWARDS =================
-    if (referrer) {
-      await updateUserPoints(
-        newUser._id,
-        1500,
-        "referral-bonus",
-        null,
-        `Referral bonus for using code ${referralCode}`,
-        { referrerId: referrer._id }
-      );
-
-      await updateUserPoints(
-        referrer._id,
-        1500,
-        "referral-bonus",
-        null,
-        `Referral bonus for referring ${newUser.username}`,
-        { referredUserId: newUser._id }
-      );
-    }
-
-    // ================= SOCKET.IO UPDATES =================
-    const io = req.app.get("io");
-    if (io) {
-      io.to(newUser._id.toString()).emit("pointsUpdate", {
-        points: newUser.points,
-      });
-
-      if (referrer) {
-        io.to(referrer._id.toString()).emit("pointsUpdate", {
-          points: referrer.points,
+        // ✅ POINTS (correct usage)
+        await updateUserPoints({
+          user: newUser,
+          amount: 1500,
+          taskType: "referral-bonus",
+          description: "Referral signup bonus",
+          io: req.app.get("io"),
         });
+
+        await updateUserPoints({
+          user: referrer,
+          amount: 1500,
+          taskType: "referral-bonus",
+          description: `Referral bonus for ${newUser.username}`,
+          io: req.app.get("io"),
+        });
+
+        // ✅ LINK REFERRAL RELATION
+        referrer.referrals.push(newUser._id);
+        await referrer.save();
       }
     }
 
-    // ================= RESPONSE =================
     res.status(201).json({
       _id: newUser._id,
       username: newUser.username,
@@ -108,12 +87,13 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// ================= LOGIN USER =================
+// ================= LOGIN =================
 export const loginUser = async (req, res) => {
   const { identifier, password, adminOnly } = req.body;
 
-  if (!identifier || !password)
-    return res.status(400).json({ message: "Email/Username and password required" });
+  if (!identifier || !password) {
+    return res.status(400).json({ message: "Credentials required" });
+  }
 
   try {
     const user = await User.findOne({
@@ -123,22 +103,19 @@ export const loginUser = async (req, res) => {
       ],
     });
 
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
-
-    const match = await user.matchPassword(password);
-    if (!match) return res.status(400).json({ message: "Invalid credentials" });
-
-    if (adminOnly && !user.isAdmin)
-      return res.status(403).json({ message: "Access denied. Admins only." });
-
-    // ================= AUTOMATIC DAILY LOGIN REWARD =================
-    let dailyLogin = null;
-    try {
-      const io = req.app.get("io");
-      dailyLogin = await dailyLoginRewardHelper(user, io);
-    } catch (err) {
-      console.error("Daily login reward error:", err.message);
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    if (adminOnly && !user.isAdmin) {
+      return res.status(403).json({ message: "Admins only" });
+    }
+
+    // ✅ DAILY LOGIN ONLY HERE
+    const dailyLogin = await dailyLoginRewardHelper(
+      user,
+      req.app.get("io")
+    );
 
     res.json({
       _id: user._id,
@@ -150,8 +127,8 @@ export const loginUser = async (req, res) => {
       bio: user.bio,
       dob: user.dob,
       isAdmin: user.isAdmin,
-      token: generateToken(user._id, user.isAdmin),
       dailyLogin,
+      token: generateToken(user._id, user.isAdmin),
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -161,59 +138,6 @@ export const loginUser = async (req, res) => {
 
 // ================= GET CURRENT USER =================
 export const getCurrentUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // Automatic daily login reward on /me
-    let dailyLogin = null;
-    try {
-      const io = req.app.get("io");
-      dailyLogin = await dailyLoginRewardHelper(user, io);
-    } catch (err) {
-      console.error("Daily login reward error:", err.message);
-    }
-
-    res.json({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      country: user.country,
-      points: user.points,
-      referralCode: user.referralCode,
-      bio: user.bio,
-      dob: user.dob,
-      isAdmin: user.isAdmin,
-      dailyLogin,
-    });
-  } catch (err) {
-    console.error("Get current user error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ================= UPDATE PROFILE =================
-export const updateProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const { username, email, country, password, bio, dob } = req.body;
-
-    if (username) user.username = username.trim();
-    if (email) user.email = email.trim().toLowerCase();
-    if (country) user.country = country.trim();
-    if (bio !== undefined) user.bio = bio.trim();
-    if (dob !== undefined) user.dob = dob;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
-    }
-
-    await user.save();
-    res.json(user);
-  } catch (err) {
-    console.error("Profile update error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
+  const user = await User.findById(req.user.id).select("-password");
+  res.json(user);
 };
