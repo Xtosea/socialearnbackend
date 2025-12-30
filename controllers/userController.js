@@ -1,89 +1,140 @@
 import User from "../models/User.js";
 import HistoryLog from "../models/HistoryLog.js";
-import bcrypt from "bcryptjs";
 
-// GET PROFILE
+// ================= GET CURRENT USER =================
 export const getProfile = async (req, res) => {
-  const user = await User.findById(req.user._id).select("-password");
-  if (!user) return res.status(404).json({ message: "User not found" });
-  res.json(user);
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error("Get profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// UPDATE PROFILE
+// ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
-  const user = await User.findById(req.user._id);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  try {
+    const { username, email, country } = req.body;
+    const user = await User.findById(req.user._id);
 
-  const { username, email, country, password, bio, dob, profilePicture } = req.body;
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-  if (username) user.username = username.trim();
-  if (email) user.email = email.trim().toLowerCase();
-  if (country) user.country = country.trim();
-  if (bio) user.bio = bio;
-  if (dob) user.dob = dob;
-  if (profilePicture) user.profilePicture = profilePicture;
-  if (password) user.password = await bcrypt.hash(password, 10);
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (country) user.country = country;
 
-  await user.save();
-  res.json({ message: "Profile updated", user });
+    await user.save();
+
+    res.json({ message: "Profile updated successfully", user });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// FOLLOW USER
+// ================= FOLLOW USER =================
 export const followUser = async (req, res) => {
-  const target = await User.findById(req.params.id);
-  const current = await User.findById(req.user._id);
-  if (!target || !current) return res.status(404).json({ message: "User not found" });
+  try {
+    const { id } = req.params; // user to follow
+    const currentUserId = req.user._id;
 
-  if (target.followers.includes(current._id))
-    return res.status(400).json({ message: "Already following" });
+    if (id === currentUserId.toString()) {
+      return res.status(400).json({ message: "You cannot follow yourself" });
+    }
 
-  target.followers.push(current._id);
-  current.following.push(target._id);
+    const userToFollow = await User.findById(id);
+    const currentUser = await User.findById(currentUserId);
 
-  await target.save();
-  await current.save();
+    if (!userToFollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-  await HistoryLog.create({
-    user: current._id,
-    taskType: "follow",
-    amount: 0,
-    metadata: { username: target.username },
-  });
+    if (userToFollow.followers.includes(currentUserId)) {
+      return res.status(400).json({ message: "Already following this user" });
+    }
 
-  res.json({ message: `Following ${target.username}` });
+    userToFollow.followers.push(currentUserId);
+    currentUser.following.push(userToFollow._id);
+
+    await userToFollow.save();
+    await currentUser.save();
+
+    await HistoryLog.create({
+      user: currentUserId,
+      taskType: "follow",
+      taskId: id,
+      amount: 0,
+      metadata: { action: "Followed user", username: userToFollow.username },
+    });
+
+    res.json({ message: `You are now following ${userToFollow.username}` });
+  } catch (err) {
+    console.error("Follow user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// UNFOLLOW USER
+// ================= UNFOLLOW USER =================
 export const unfollowUser = async (req, res) => {
-  const target = await User.findById(req.params.id);
-  const current = await User.findById(req.user._id);
-  if (!target || !current) return res.status(404).json({ message: "User not found" });
+  try {
+    const { id } = req.params; // user to unfollow
+    const currentUserId = req.user._id;
 
-  target.followers.pull(current._id);
-  current.following.pull(target._id);
+    const userToUnfollow = await User.findById(id);
+    const currentUser = await User.findById(currentUserId);
 
-  await target.save();
-  await current.save();
+    if (!userToUnfollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-  await HistoryLog.create({
-    user: current._id,
-    taskType: "unfollow",
-    amount: 0,
-    metadata: { username: target.username },
-  });
+    if (!userToUnfollow.followers.includes(currentUserId)) {
+      return res.status(400).json({ message: "You are not following this user" });
+    }
 
-  res.json({ message: `Unfollowed ${target.username}` });
+    userToUnfollow.followers = userToUnfollow.followers.filter(
+      (uid) => uid.toString() !== currentUserId.toString()
+    );
+    currentUser.following = currentUser.following.filter(
+      (uid) => uid.toString() !== id.toString()
+    );
+
+    await userToUnfollow.save();
+    await currentUser.save();
+
+    await HistoryLog.create({
+      user: currentUserId,
+      taskType: "unfollow",
+      taskId: id,
+      amount: 0,
+      metadata: { action: "Unfollowed user", username: userToUnfollow.username },
+    });
+
+    res.json({ message: `You unfollowed ${userToUnfollow.username}` });
+  } catch (err) {
+    console.error("Unfollow user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// GET REFERRALS
+// ================= GET REFERRALS =================
 export const getReferrals = async (req, res) => {
-  const user = await User.findById(req.user._id).populate(
-    "referrals",
-    "username email country points createdAt"
-  );
-  res.json({
-    referralCode: user.referralCode,
-    referralCount: user.referrals.length,
-    referrals: user.referrals,
-  });
+  try {
+    const user = await User.findById(req.user._id).populate(
+      "referrals",
+      "username email country points createdAt"
+    );
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({
+      referralCode: user.referralCode,
+      referralCount: user.referrals.length,
+      referrals: user.referrals,
+    });
+  } catch (err) {
+    console.error("Get referrals error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
