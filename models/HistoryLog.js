@@ -8,20 +8,25 @@ const HistorySchema = new Schema(
     taskType: {
       type: String,
       enum: [
-        "video-view",   // user watched video
+        // Core earnings
+        "video-view",
+        "action",
         "daily-login",
         "daily-action",
         "referral-bonus",
+
+        // Admin actions
         "admin_add",
         "admin_deduct",
+        "bulk-transfer",
+
+        // Transfers
         "transfer_in",
         "transfer_out",
-        "action",       // like, share, comment
-        "transfer",     // user ↔ user or admin → user
-        "redeem",       // user redeem points
-        "admin",        // admin add/deduct
-        "bulk-transfer",// admin bulk
-        "promotion"     // task promoted
+
+        // Marketplace / promotions
+        "promotion",
+        "redeem"
       ],
       required: true,
     },
