@@ -4,7 +4,7 @@ import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
-// POST /api/rewards/daily-login
+// Claim daily login reward
 router.post("/daily-login", auth, claimDailyLogin);
 
 export default router;
