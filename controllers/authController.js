@@ -163,3 +163,29 @@ export const getCurrentUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// ================= UPDATE PROFILE =================
+export const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const { username, email, country, password, bio, dob } = req.body;
+
+    if (username) user.username = username.trim();
+    if (email) user.email = email.trim().toLowerCase();
+    if (country) user.country = country.trim();
+    if (bio !== undefined) user.bio = bio.trim();
+    if (dob !== undefined) user.dob = dob;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
