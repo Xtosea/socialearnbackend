@@ -1,103 +1,61 @@
-// utils/dailyLoginHelper.js
-import { updateUserPoints } from "../utils/pointsHelpers.js";
+import { updateUserPoints } from "./pointsHelpers.js";
 import User from "../models/User.js";
 
-/**
- * Handles daily login reward for a user.
- * Tracks claimed days, streaks, and monthly/bonus points.
- * @param {Object} user - Mongoose user document
- * @param {Object|null} io - Optional Socket.IO instance for real-time updates
- * @returns {Object} Updated dailyLogin info + earned points today + bonus info
- */
 export const dailyLoginRewardHelper = async (user, io = null) => {
   const today = new Date();
-  const dayOfMonth = today.getDate();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
+  const lastLogin = user.dailyLogin?.lastLoginDate || null;
 
-  // Initialize dailyLogin if missing
-  if (!user.dailyLogin) {
-    user.dailyLogin = {
-      lastLoginDate: null,
-      month: currentMonth,
-      year: currentYear,
-      monthlyTarget: Math.floor(Math.random() * (1000 - 50 + 1)) + 50,
-      monthlyEarned: 0,
-      streak: 0,
-      claimedDays: [],
+  // Reset streak if month changed
+  if (user.dailyLogin?.month !== today.getMonth()) {
+    user.dailyLogin.month = today.getMonth();
+    user.dailyLogin.monthlyTarget = 0;
+    user.dailyLogin.monthlyEarned = 0;
+    user.dailyLogin.streak = 0;
+  }
+
+  // Already claimed today
+  if (lastLogin && new Date(lastLogin).toDateString() === today.toDateString()) {
+    return {
+      claimed: false,
+      message: "Already claimed today",
+      streak: user.dailyLogin.streak || 0,
     };
   }
 
-  // Reset month/year if needed
-  if (user.dailyLogin.month !== currentMonth || user.dailyLogin.year !== currentYear) {
-    user.dailyLogin.month = currentMonth;
-    user.dailyLogin.year = currentYear;
-    user.dailyLogin.monthlyTarget = Math.floor(Math.random() * (1000 - 50 + 1)) + 50;
-    user.dailyLogin.monthlyEarned = 0;
-    user.dailyLogin.streak = 0;
-    user.dailyLogin.claimedDays = [];
-    user.dailyLogin.lastLoginDate = null;
-  }
-
-  // Check if already claimed today
-  const lastLogin = user.dailyLogin.lastLoginDate ? new Date(user.dailyLogin.lastLoginDate) : null;
-  const isSameDay =
-    lastLogin &&
-    lastLogin.getFullYear() === today.getFullYear() &&
-    lastLogin.getMonth() === today.getMonth() &&
-    lastLogin.getDate() === dayOfMonth;
-
-  if (isSameDay) {
-    return { dailyLogin: user.dailyLogin, earnedToday: 0, bonus: null, message: "Already claimed today" };
-  }
-
-  // Calculate points for today
-  const daysInMonth = new Date(today.getFullYear(), currentMonth + 1, 0).getDate();
-  const dailyPoints = Math.floor(user.dailyLogin.monthlyTarget / daysInMonth);
-
   // Update streak
-  let streak = user.dailyLogin.streak || 0;
-  if (lastLogin) {
-    const yesterday = new Date(today);
-    yesterday.setDate(dayOfMonth - 1);
-
-    const lastWasYesterday =
-      lastLogin.getFullYear() === yesterday.getFullYear() &&
-      lastLogin.getMonth() === yesterday.getMonth() &&
-      lastLogin.getDate() === yesterday.getDate();
-
-    streak = lastWasYesterday ? streak + 1 : 1; // reset if missed
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (lastLogin && new Date(lastLogin).toDateString() === yesterday.toDateString()) {
+    user.dailyLogin.streak = (user.dailyLogin.streak || 0) + 1;
   } else {
-    streak = 1;
+    user.dailyLogin.streak = 1;
   }
 
-  user.dailyLogin.streak = streak;
+  // Reward points (e.g., 100 per day, double on 7-day streak)
+  let reward = 100;
+  if (user.dailyLogin.streak % 7 === 0) reward = 200;
 
-  // Add today's points
-  await updateUserPoints(user._id, dailyPoints, "daily-login", null, "Daily login reward");
-  user.dailyLogin.monthlyEarned += dailyPoints;
+  // Update user points
+  await updateUserPoints({
+    user,
+    amount: reward,
+    taskType: "daily-login",
+    description: `Daily login reward (day ${user.dailyLogin.streak})`,
+    io,
+  });
+
+  // Save last login date
   user.dailyLogin.lastLoginDate = today;
-  user.dailyLogin.claimedDays.push(dayOfMonth);
-
-  // Check streak bonuses
-  let bonus = null;
-  if (streak === 7) {
-    const bonusPoints = 500; // 7-day streak bonus
-    await updateUserPoints(user._id, bonusPoints, "streak-bonus", null, "7-day streak bonus");
-    bonus = { type: "7-day", points: bonusPoints };
-  }
-  if (streak === 30) {
-    const bonusPoints = 3000; // 30-day mega bonus
-    await updateUserPoints(user._id, bonusPoints, "streak-bonus", null, "30-day mega streak bonus");
-    bonus = { type: "30-day", points: bonusPoints };
-  }
+  user.dailyLogin.monthlyTarget += 1;
+  user.dailyLogin.monthlyEarned += reward;
 
   await user.save();
 
-  // Emit real-time points update if Socket.IO provided
-  if (io) {
-    io.to(user._id.toString()).emit("pointsUpdate", { points: user.points });
-  }
-
-  return { dailyLogin: user.dailyLogin, earnedToday: dailyPoints, bonus, message: "Reward claimed" };
+  return {
+    claimed: true,
+    reward,
+    streak: user.dailyLogin.streak,
+    monthlyTarget: user.dailyLogin.monthlyTarget,
+    monthlyEarned: user.dailyLogin.monthlyEarned,
+  };
 };
