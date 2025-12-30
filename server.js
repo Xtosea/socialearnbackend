@@ -71,6 +71,7 @@ app.use(
 // ✅ MIDDLEWARE
 // =========================================
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // 🔥 ADD THIS
 app.use(morgan("dev"));
 
 // =========================================
