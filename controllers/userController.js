@@ -51,9 +51,13 @@ export const followUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (userToFollow.followers.includes(currentUserId)) {
-      return res.status(400).json({ message: "Already following this user" });
-    }
+    if (
+  userToFollow.followers.some(
+    (uid) => uid.toString() === currentUserId.toString()
+  )
+) {
+  return res.status(400).json({ message: "Already following this user" });
+}
 
     userToFollow.followers.push(currentUserId);
     currentUser.following.push(userToFollow._id);
