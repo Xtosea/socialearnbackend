@@ -10,87 +10,92 @@ const generateToken = (id, isAdmin = false) =>
 
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
-  let { username, email, password, country, referralCode } = req.body;
+  try {
+    let { username, email, password, country, referralCode } = req.body;
 
-username = username?.trim();
-email = email?.trim().toLowerCase();
-password = password?.trim();
-country = country?.trim();
-referralCode = referralCode?.trim().toUpperCase();
+    username = username?.trim();
+    email = email?.trim().toLowerCase();
+    password = password?.trim();
+    country = country?.trim();
+    referralCode = referralCode?.trim().toUpperCase();
 
-if (!username || !email || !password || !country) {
-  return res.status(400).json({ message: "All fields are required" });
-}
+    if (!username || !email || !password || !country) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
 
-// Check if user exists
-const exists = await User.findOne({
-  $or: [
-    { email: new RegExp(`^${email}$`, "i") },
-    { username: new RegExp(`^${username}$`, "i") },
-  ],
-});
+    // Check if user exists
+    const exists = await User.findOne({
+      $or: [
+        { email: new RegExp(`^${email}$`, "i") },
+        { username: new RegExp(`^${username}$`, "i") },
+      ],
+    });
 
-if (exists) {
-  return res.status(400).json({
-    message:
-      exists.email.toLowerCase() === email
-        ? "Email already exists"
-        : "Username already exists",
-  });
-}
+    if (exists) {
+      return res.status(400).json({
+        message:
+          exists.email.toLowerCase() === email
+            ? "Email already exists"
+            : "Username already exists",
+      });
+    }
 
-// Create & save user FIRST
-const newUser = new User({
-  username,
-  email,
-  password,
-  country,
-  points: 0,
-});
+    // Create & save user FIRST
+    const newUser = new User({
+      username,
+      email,
+      password,
+      country,
+      points: 0,
+    });
 
-await newUser.save();
+    await newUser.save();
 
-// ================= REFERRAL HANDLING =================
-if (referralCode) {
-  const referrer = await User.findOne({ referralCode });
+    // ================= REFERRAL HANDLING =================
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode });
 
-  if (!referrer) {
-    return res.status(400).json({ message: "Invalid referral code" });
-  }
+      if (!referrer) {
+        return res.status(400).json({ message: "Invalid referral code" });
+      }
 
-  if (referrer.email === email) {
-    return res
-      .status(400)
-      .json({ message: "You cannot use your own referral code" });
-  }
+      if (referrer.email === email) {
+        return res
+          .status(400)
+          .json({ message: "You cannot use your own referral code" });
+      }
 
-  await updateUserPoints({
-    user: newUser,
-    amount: 1500,
-    taskType: "referral-bonus",
-    description: `Referral bonus for using code ${referralCode}`,
-    metadata: { referrerId: referrer._id },
-  });
+      await updateUserPoints({
+        user: newUser,
+        amount: 1500,
+        taskType: "referral-bonus",
+        description: `Referral bonus for using code ${referralCode}`,
+        metadata: { referrerId: referrer._id },
+      });
 
-  await updateUserPoints({
-    user: referrer,
-    amount: 1500,
-    taskType: "referral-bonus",
-    description: `Referral bonus for referring ${newUser.username}`,
-    metadata: { referredUserId: newUser._id },
-  });
+      await updateUserPoints({
+        user: referrer,
+        amount: 1500,
+        taskType: "referral-bonus",
+        description: `Referral bonus for referring ${newUser.username}`,
+        metadata: { referredUserId: newUser._id },
+      });
 
-  newUser.referredBy = referrer._id;
+      newUser.referredBy = referrer._id;
 
-  referrer.referrals = referrer.referrals || [];
-  referrer.referrals.push(newUser._id);
+      referrer.referrals = referrer.referrals || [];
+      referrer.referrals.push(newUser._id);
 
-  await Promise.all([newUser.save(), referrer.save()]);
-}
+      await Promise.all([newUser.save(), referrer.save()]);
+    }
 
     // Emit Socket.IO updates
     const io = req.app.get("io");
-    if (io) io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
+    if (io) {
+      io.to(newUser._id.toString()).emit("pointsUpdate", {
+        points: newUser.points,
+      });
+    }
 
     res.status(201).json({
       _id: newUser._id,
