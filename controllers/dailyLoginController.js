@@ -1,17 +1,19 @@
 import User from "../models/User.js";
+import { updateUserPoints } from "../utils/pointsHelpers.js";
 import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js";
 
-export const dailyLoginReward = async (req, res) => {
+// Claim daily login reward
+export const claimDailyLogin = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const io = req.app.get("io"); // optional
-    const result = await dailyLoginRewardHelper(user, io);
+    const io = req.app.get("io"); // optional: socket.io for real-time points update
+    const dailyLogin = await dailyLoginRewardHelper(user, io);
 
-    return res.status(200).json(result);
+    res.json({ message: "Daily login claimed", dailyLogin, points: user.points });
   } catch (err) {
-    console.error("Daily login error:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("Claim daily login error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
