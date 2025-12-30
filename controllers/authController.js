@@ -4,22 +4,16 @@ import jwt from "jsonwebtoken";
 import { updateUserPoints } from "../utils/pointsHelpers.js";
 import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js";
 
-// ================= JWT =================
+// JWT token
 const generateToken = (id, isAdmin = false) =>
   jwt.sign({ id, isAdmin }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
-// ================= REGISTER =================
+// REGISTER
 export const registerUser = async (req, res) => {
-  let { username, email, password, country, referralCode } = req.body;
+  const { username, email, password, country, referralCode } = req.body;
 
-  if (!username || !email || !password || !country) {
+  if (!username || !email || !password || !country)
     return res.status(400).json({ message: "All fields are required" });
-  }
-
-  username = username.trim();
-  email = email.trim().toLowerCase();
-  password = password.trim();
-  country = country.trim();
 
   try {
     const exists = await User.findOne({
@@ -28,28 +22,23 @@ export const registerUser = async (req, res) => {
         { username: new RegExp(`^${username}$`, "i") },
       ],
     });
-
-    if (exists) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+    if (exists) return res.status(400).json({ message: "User already exists" });
 
     const newUser = await User.create({
-      username,
-      email,
-      password,
-      country,
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+      country: country.trim(),
       referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
     });
 
-    // ================= REFERRAL =================
+    // Referral bonus
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
-
       if (referrer) {
         newUser.referredBy = referrer._id;
         await newUser.save();
 
-        // ✅ POINTS (correct usage)
         await updateUserPoints({
           user: newUser,
           amount: 1500,
@@ -66,7 +55,6 @@ export const registerUser = async (req, res) => {
           io: req.app.get("io"),
         });
 
-        // ✅ LINK REFERRAL RELATION
         referrer.referrals.push(newUser._id);
         await referrer.save();
       }
@@ -87,13 +75,10 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// ================= LOGIN =================
+// LOGIN
 export const loginUser = async (req, res) => {
   const { identifier, password, adminOnly } = req.body;
-
-  if (!identifier || !password) {
-    return res.status(400).json({ message: "Credentials required" });
-  }
+  if (!identifier || !password) return res.status(400).json({ message: "Credentials required" });
 
   try {
     const user = await User.findOne({
@@ -107,15 +92,10 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    if (adminOnly && !user.isAdmin) {
+    if (adminOnly && !user.isAdmin)
       return res.status(403).json({ message: "Admins only" });
-    }
 
-    // ✅ DAILY LOGIN ONLY HERE
-    const dailyLogin = await dailyLoginRewardHelper(
-      user,
-      req.app.get("io")
-    );
+    const dailyLogin = await dailyLoginRewardHelper(user, req.app.get("io"));
 
     res.json({
       _id: user._id,
@@ -136,8 +116,14 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// ================= GET CURRENT USER =================
+// GET CURRENT USER (/me)
 export const getCurrentUser = async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  res.json(user);
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error("Get current user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
