@@ -9,6 +9,13 @@ const HistorySchema = new Schema(
       type: String,
       enum: [
         "video-view",   // user watched video
+        "daily-login",
+        "daily-action",
+        "referral-bonus",
+        "admin_add",
+        "admin_deduct",
+        "transfer_in",
+        "transfer_out",
         "action",       // like, share, comment
         "transfer",     // user ↔ user or admin → user
         "redeem",       // user redeem points
