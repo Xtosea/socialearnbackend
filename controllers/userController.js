@@ -93,9 +93,13 @@ export const unfollowUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (!userToUnfollow.followers.includes(currentUserId)) {
-      return res.status(400).json({ message: "You are not following this user" });
-    }
+    if (
+  !userToUnfollow.followers.some(
+    (uid) => uid.toString() === currentUserId.toString()
+  )
+) {
+  return res.status(400).json({ message: "You are not following this user" });
+}
 
     userToUnfollow.followers = userToUnfollow.followers.filter(
       (uid) => uid.toString() !== currentUserId.toString()
