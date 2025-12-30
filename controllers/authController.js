@@ -4,18 +4,23 @@ import jwt from "jsonwebtoken";
 import { updateUserPoints } from "../utils/pointsHelpers.js";
 import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js";
 
-// JWT token
+// Generate JWT token
 const generateToken = (id, isAdmin = false) =>
   jwt.sign({ id, isAdmin }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
-// REGISTER
+// ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
-  const { username, email, password, country, referralCode } = req.body;
+  let { username, email, password, country, referralCode } = req.body;
+  username = username?.trim();
+  email = email?.trim().toLowerCase();
+  password = password?.trim();
+  country = country?.trim();
 
   if (!username || !email || !password || !country)
     return res.status(400).json({ message: "All fields are required" });
 
   try {
+    // Check if user exists
     const exists = await User.findOne({
       $or: [
         { email: new RegExp(`^${email}$`, "i") },
@@ -24,39 +29,49 @@ export const registerUser = async (req, res) => {
     });
     if (exists) return res.status(400).json({ message: "User already exists" });
 
-    const newUser = await User.create({
-      username: username.trim(),
-      email: email.trim().toLowerCase(),
-      password: password.trim(),
-      country: country.trim(),
-      referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-    });
+    // Create new user
+    const newUser = new User({ username, email, password, country, points: 0 });
+    newUser.referralCode = newUser._id.toString().slice(-6);
 
-    // Referral bonus
+    // Handle referral code
     if (referralCode) {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
-        newUser.referredBy = referrer._id;
-        await newUser.save();
-
+        // Give points to new user
         await updateUserPoints({
           user: newUser,
           amount: 1500,
           taskType: "referral-bonus",
-          description: "Referral signup bonus",
-          io: req.app.get("io"),
+          taskId: null,
+          description: `Referral bonus for using code ${referralCode}`,
+          metadata: { referrerId: referrer._id },
         });
 
+        // Give points to referrer
         await updateUserPoints({
           user: referrer,
           amount: 1500,
           taskType: "referral-bonus",
-          description: `Referral bonus for ${newUser.username}`,
-          io: req.app.get("io"),
+          taskId: null,
+          description: `Referral bonus for referring ${newUser.username}`,
+          metadata: { referredUserId: newUser._id },
         });
 
+        newUser.referredBy = referrer._id;
         referrer.referrals.push(newUser._id);
         await referrer.save();
+      }
+    }
+
+    await newUser.save();
+
+    // Emit Socket.IO updates if available
+    const io = req.app.get("io");
+    if (io) {
+      io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
+      if (newUser.referredBy) {
+        const referrer = await User.findById(newUser.referredBy);
+        io.to(referrer._id.toString()).emit("pointsUpdate", { points: referrer.points });
       }
     }
 
@@ -99,6 +114,7 @@ export const loginUser = async (req, res) => {
       return res.status(403).json({ message: "Access denied. Admins only." });
     }
 
+    // Daily login reward
     const dailyLogin = await dailyLoginRewardHelper(user, req.app.get("io"));
 
     res.json({
@@ -120,7 +136,7 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// GET CURRENT USER (/me)
+// ================= GET CURRENT USER =================
 export const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
