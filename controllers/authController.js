@@ -1,8 +1,7 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { updateUserPoints } from "../utils/pointsHelpers.js";
-import { dailyLoginRewardHelper } from "../utils/dailyLoginHelper.js";
+import { updateUserPoints } from "../utils/pointsHelpers.js"; // points + history logging
 
 // Generate JWT token
 const generateToken = (id, isAdmin = false) =>
@@ -10,19 +9,16 @@ const generateToken = (id, isAdmin = false) =>
 
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
+  let { username, email, password, country, referralCode } = req.body;
+  username = username?.trim();
+  email = email?.trim().toLowerCase();
+  password = password?.trim();
+  country = country?.trim();
+
+  if (!username || !email || !password || !country)
+    return res.status(400).json({ message: "All fields are required" });
+
   try {
-    let { username, email, password, country, referralCode } = req.body;
-
-    username = username?.trim();
-    email = email?.trim().toLowerCase();
-    password = password?.trim();
-    country = country?.trim();
-    referralCode = referralCode?.trim().toUpperCase();
-
-    if (!username || !email || !password || !country) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
     // Check if user exists
     const exists = await User.findOne({
       $or: [
@@ -30,71 +26,52 @@ export const registerUser = async (req, res) => {
         { username: new RegExp(`^${username}$`, "i") },
       ],
     });
+    if (exists) return res.status(400).json({ message: "User already exists" });
 
-    if (exists) {
-      return res.status(400).json({
-        message:
-          exists.email.toLowerCase() === email
-            ? "Email already exists"
-            : "Username already exists",
-      });
+    // Create new user
+    const newUser = new User({ username, email, password, country, points: 0 });
+    newUser.referralCode = newUser._id.toString().slice(-6);
+
+    // Handle referral code
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode });
+      if (referrer) {
+        // Give points to new user
+        await updateUserPoints({
+          user: newUser,
+          amount: 1500,
+          taskType: "referral-bonus",
+          taskId: null,
+          description: `Referral bonus for using code ${referralCode}`,
+          metadata: { referrerId: referrer._id },
+        });
+
+        // Give points to referrer
+        await updateUserPoints({
+          user: referrer,
+          amount: 1500,
+          taskType: "referral-bonus",
+          taskId: null,
+          description: `Referral bonus for referring ${newUser.username}`,
+          metadata: { referredUserId: newUser._id },
+        });
+
+        newUser.referredBy = referrer._id;
+        referrer.referrals.push(newUser._id);
+        await referrer.save();
+      }
     }
-
-    // Create & save user FIRST
-    const newUser = new User({
-      username,
-      email,
-      password,
-      country,
-      points: 0,
-    });
 
     await newUser.save();
 
-    // ================= REFERRAL HANDLING =================
-    if (referralCode) {
-      const referrer = await User.findOne({ referralCode });
-
-      if (!referrer) {
-        return res.status(400).json({ message: "Invalid referral code" });
-      }
-
-      if (referrer.email === email) {
-        return res
-          .status(400)
-          .json({ message: "You cannot use your own referral code" });
-      }
-
-      await updateUserPoints({
-        user: newUser,
-        amount: 1500,
-        taskType: "referral-bonus",
-        description: `Referral bonus for using code ${referralCode}`,
-        metadata: { referrerId: referrer._id },
-      });
-
-      await updateUserPoints({
-        user: referrer,
-        amount: 1500,
-        taskType: "referral-bonus",
-        description: `Referral bonus for referring ${newUser.username}`,
-        metadata: { referredUserId: newUser._id },
-      });
-
-      newUser.referredBy = referrer._id;
-
-      referrer.referrals = referrer.referrals || [];
-      referrer.referrals.push(newUser._id);
-
-      await Promise.all([newUser.save(), referrer.save()]);
-    }
-
-    // Emit Socket.IO updates
+    // Emit Socket.IO updates if available
     const io = req.app.get("io");
     if (io) {
-      io.to(newUser._id.toString()).emit("pointsUpdate", {
-        points: newUser.points,
-      });
+      io.to(newUser._id.toString()).emit("pointsUpdate", { points: newUser.points });
+      if (newUser.referredBy) {
+        const referrer = await User.findById(newUser.referredBy);
+        io.to(referrer._id.toString()).emit("pointsUpdate", { points: referrer.points });
+      }
     }
 
     res.status(201).json({
@@ -136,9 +113,6 @@ export const loginUser = async (req, res) => {
       return res.status(403).json({ message: "Access denied. Admins only." });
     }
 
-    // Daily login reward
-    const dailyLogin = await dailyLoginRewardHelper(user, req.app.get("io"));
-
     res.json({
       _id: user._id,
       username: user.username,
@@ -149,7 +123,6 @@ export const loginUser = async (req, res) => {
       bio: user.bio,
       dob: user.dob,
       isAdmin: user.isAdmin,
-      dailyLogin,
       token: generateToken(user._id, user.isAdmin),
     });
   } catch (err) {
