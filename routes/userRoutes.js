@@ -1,5 +1,4 @@
 import express from "express";
-import User from "../models/User.js";
 import {
   getProfile,
   updateProfile,
@@ -8,11 +7,13 @@ import {
   getReferrals,
 } from "../controllers/userController.js";
 import { getLeaderboard } from "../controllers/leaderboardController.js";
-import protect from "../middleware/auth.js"; // JWT auth
+import protect from "../middleware/auth.js"; // ✅ fixed import
 
 const router = express.Router();
 
-
+// ================= PROFILE =================
+router.get("/me", protect, getProfile);
+router.put("/me", protect, updateProfile);
 
 // ================= SOCIAL (FOLLOW/UNFOLLOW) =================
 router.put("/follow/:id", protect, followUser);
