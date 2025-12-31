@@ -13,6 +13,20 @@ export const getProfile = async (req, res) => {
   }
 };
 
+// ================= GET USER BY ID =================
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error("Get user by id error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
   try {
