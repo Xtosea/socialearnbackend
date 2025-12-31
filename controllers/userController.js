@@ -126,6 +126,18 @@ export const unfollowUser = async (req, res) => {
   }
 };
 
+// Suggested Users
+export const getSuggestedUsers = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const users = await User.find({ _id: { $ne: currentUserId } }).select("-password").limit(10);
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // ================= GET REFERRALS =================
 export const getReferrals = async (req, res) => {
   try {
