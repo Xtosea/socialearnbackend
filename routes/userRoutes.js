@@ -19,6 +19,7 @@ router.put("/me", protect, updateProfile);
 // ================= SOCIAL (FOLLOW/UNFOLLOW) =================
 router.put("/follow/:id", protect, followUser);
 router.put("/unfollow/:id", protect, unfollowUser);
+router.get("/suggested", protect, getSuggestedUsers);
 
 // ================= REFERRALS =================
 router.get("/referrals", protect, getReferrals);
