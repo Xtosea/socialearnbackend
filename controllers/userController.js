@@ -65,43 +65,46 @@ export const updateProfile = async (req, res) => {
 // ================= FOLLOW USER =================
 export const followUser = async (req, res) => {
   try {
-    const { id } = req.params; // user to follow
     const currentUserId = req.user._id;
+    const targetUserId = req.params.id;
 
-    if (id === currentUserId.toString()) {
+    if (currentUserId.toString() === targetUserId) {
       return res.status(400).json({ message: "You cannot follow yourself" });
     }
 
-    const userToFollow = await User.findById(id);
-    const currentUser = await User.findById(currentUserId);
+    const me = await User.findById(currentUserId);
+    const target = await User.findById(targetUserId);
 
-    if (!userToFollow || !currentUser) {
+    if (!me || !target) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (
-  userToFollow.followers.some(
-    (uid) => uid.toString() === currentUserId.toString()
-  )
-) {
-  return res.status(400).json({ message: "Already following this user" });
-}
+    if (me.following.includes(targetUserId)) {
+      return res.status(400).json({ message: "Already following this user" });
+    }
 
-    userToFollow.followers.push(currentUserId);
-    currentUser.following.push(userToFollow._id);
+    // update both sides
+    me.following.push(targetUserId);
+    target.followers.push(currentUserId);
 
-    await userToFollow.save();
-    await currentUser.save();
+    await me.save();
+    await target.save();
 
     await HistoryLog.create({
       user: currentUserId,
       taskType: "follow",
-      taskId: id,
+      taskId: targetUserId,
       amount: 0,
-      metadata: { action: "Followed user", username: userToFollow.username },
+      metadata: { action: "Followed user", username: target.username },
     });
 
-    res.json({ message: `You are now following ${userToFollow.username}` });
+    // ✅ return updated user with avatars
+    const updatedMe = await User.findById(currentUserId)
+      .select("-password")
+      .populate("followers", "username profilePicture")
+      .populate("following", "username profilePicture");
+
+    res.json(updatedMe);
   } catch (err) {
     console.error("Follow user error:", err);
     res.status(500).json({ message: "Server error" });
@@ -111,43 +114,46 @@ export const followUser = async (req, res) => {
 // ================= UNFOLLOW USER =================
 export const unfollowUser = async (req, res) => {
   try {
-    const { id } = req.params; // user to unfollow
     const currentUserId = req.user._id;
+    const targetUserId = req.params.id;
 
-    const userToUnfollow = await User.findById(id);
-    const currentUser = await User.findById(currentUserId);
+    const me = await User.findById(currentUserId);
+    const target = await User.findById(targetUserId);
 
-    if (!userToUnfollow || !currentUser) {
+    if (!me || !target) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (
-  !userToUnfollow.followers.some(
-    (uid) => uid.toString() === currentUserId.toString()
-  )
-) {
-  return res.status(400).json({ message: "You are not following this user" });
-}
+    if (!me.following.includes(targetUserId)) {
+      return res.status(400).json({ message: "You are not following this user" });
+    }
 
-    userToUnfollow.followers = userToUnfollow.followers.filter(
-      (uid) => uid.toString() !== currentUserId.toString()
-    );
-    currentUser.following = currentUser.following.filter(
-      (uid) => uid.toString() !== id.toString()
+    me.following = me.following.filter(
+      (id) => id.toString() !== targetUserId
     );
 
-    await userToUnfollow.save();
-    await currentUser.save();
+    target.followers = target.followers.filter(
+      (id) => id.toString() !== currentUserId.toString()
+    );
+
+    await me.save();
+    await target.save();
 
     await HistoryLog.create({
       user: currentUserId,
       taskType: "unfollow",
-      taskId: id,
+      taskId: targetUserId,
       amount: 0,
-      metadata: { action: "Unfollowed user", username: userToUnfollow.username },
+      metadata: { action: "Unfollowed user", username: target.username },
     });
 
-    res.json({ message: `You unfollowed ${userToUnfollow.username}` });
+    // ✅ return updated user with avatars
+    const updatedMe = await User.findById(currentUserId)
+      .select("-password")
+      .populate("followers", "username profilePicture")
+      .populate("following", "username profilePicture");
+
+    res.json(updatedMe);
   } catch (err) {
     console.error("Unfollow user error:", err);
     res.status(500).json({ message: "Server error" });
