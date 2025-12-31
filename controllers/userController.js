@@ -30,18 +30,27 @@ export const getUserById = async (req, res) => {
 // ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
   try {
-    const { username, email, country } = req.body;
-    const user = await User.findById(req.user._id);
+    const { username, email, country, bio, dob, profilePicture, password } = req.body;
 
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (username) user.username = username;
-    if (email) user.email = email;
-    if (country) user.country = country;
+    if (username !== undefined) user.username = username;
+    if (email !== undefined) user.email = email;
+    if (country !== undefined) user.country = country;
+    if (bio !== undefined) user.bio = bio;
+    if (dob !== undefined) user.dob = dob;
+    if (profilePicture !== undefined) user.profilePicture = profilePicture;
+
+    if (password) {
+      user.password = password; // bcrypt pre-save hook will hash
+    }
 
     await user.save();
 
-    res.json({ message: "Profile updated successfully", user });
+    const updatedUser = await User.findById(user._id).select("-password");
+
+    res.json(updatedUser);
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ message: "Server error" });
