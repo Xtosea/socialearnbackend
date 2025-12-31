@@ -21,6 +21,9 @@ router.put("/follow/:id", protect, followUser);
 router.put("/unfollow/:id", protect, unfollowUser);
 router.get("/suggested", protect, getSuggestedUsers);
 
+// ================= USER PROFILE BY ID =================
+router.get("/:id", protect, getUserById); // ⬅ MUST be after /me & /suggested
+
 // ================= REFERRALS =================
 router.get("/referrals", protect, getReferrals);
 
