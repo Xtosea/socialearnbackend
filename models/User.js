@@ -9,17 +9,27 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       minlength: 4,
+      lowercase: true,
+      trim: true,
     },
+
     email: {
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
     },
+
     password: {
       type: String,
       required: true,
     },
-    country: String,
+
+    country: {
+      type: String,
+      default: "",
+    },
 
     // ================= ACCOUNT =================
     role: {
@@ -27,16 +37,29 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+
     isEmailVerified: {
       type: Boolean,
       default: false,
     },
+
     emailVerificationToken: String,
 
     // ================= PROFILE =================
-    bio: { type: String, default: "" },
-    dob: { type: String, default: "" },
-    profilePicture: { type: String, default: "" },
+    bio: {
+      type: String,
+      default: "",
+    },
+
+    dob: {
+      type: Date,
+      default: null,
+    },
+
+    profilePicture: {
+      type: String,
+      default: "https://res.cloudinary.com/djt1zq25a/image/upload/default-avatar.png",
+    },
 
     // ================= POINTS =================
     points: {
@@ -45,29 +68,58 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
-    
     // ================= DAILY LOGIN REWARD =================
-dailyLogin: {
-  lastLoginDate: { type: Date, default: null },
-  month: { type: Number, default: new Date().getMonth() },
-  year: { type: Number, default: new Date().getFullYear() },
-  monthlyTarget: { type: Number, default: 0 },
-  monthlyEarned: { type: Number, default: 0 },
-  streak: { type: Number, default: 0 },
-  claimedDays: { type: [Number], default: [] },
-},
+    dailyLogin: {
+      lastLoginDate: {
+        type: Date,
+        default: null,
+      },
+      month: {
+        type: Number,
+        default: new Date().getMonth(),
+      },
+      year: {
+        type: Number,
+        default: new Date().getFullYear(),
+      },
+      monthlyTarget: {
+        type: Number,
+        default: 0,
+      },
+      monthlyEarned: {
+        type: Number,
+        default: 0,
+      },
+      streak: {
+        type: Number,
+        default: 0,
+      },
+      claimedDays: {
+        type: [Number],
+        default: [],
+      },
+    },
 
     // ================= SOCIAL =================
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    followers: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+    ],
+
+    following: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+    ],
 
     // ================= REFERRALS =================
-    referrals: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    referrals: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+    ],
+
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+
     referralCode: {
       type: String,
       unique: true,
@@ -82,10 +134,11 @@ dailyLogin: {
 );
 
 //
-// ================= PASSWORD =================
+// ================= PASSWORD HASH =================
 //
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
+
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
