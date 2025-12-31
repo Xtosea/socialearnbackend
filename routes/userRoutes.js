@@ -6,6 +6,7 @@ import {
   unfollowUser,
   getReferrals,
   getSuggestedUsers,
+  getUserById, // ✅ ADD THIS
 } from "../controllers/userController.js";
 import { getLeaderboard } from "../controllers/leaderboardController.js";
 import protect from "../middleware/auth.js"; // ✅ fixed import
