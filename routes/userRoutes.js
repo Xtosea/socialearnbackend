@@ -8,7 +8,7 @@ import {
   getReferrals,
 } from "../controllers/userController.js";
 import { getLeaderboard } from "../controllers/leaderboardController.js";
-import { protect } from "../middleware/auth.js"; // JWT auth
+import protect from "../middleware/auth.js"; // JWT auth
 
 const router = express.Router();
 
