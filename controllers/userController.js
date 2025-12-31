@@ -154,14 +154,20 @@ export const unfollowUser = async (req, res) => {
   }
 };
 
-// Suggested Users
+// ================= SUGGESTED USERS =================
 export const getSuggestedUsers = async (req, res) => {
   try {
     const currentUserId = req.user._id;
-    const users = await User.find({ _id: { $ne: currentUserId } }).select("-password").limit(10);
+
+    const users = await User.find({
+      _id: { $ne: currentUserId },
+    })
+      .select("username profilePicture followers")
+      .limit(10);
+
     res.json(users);
   } catch (err) {
-    console.error(err);
+    console.error("Get suggested users error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
