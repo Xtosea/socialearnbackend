@@ -12,6 +12,8 @@ import taskRoutes from "./routes/taskRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
+import postRoutes from "./routes/postRoutes.js";
+
 import historyRoutes from "./routes/historyRoutes.js";
 //import "./telegramBot.js";
 import contactRoutes from "./routes/contact.js";
@@ -91,6 +93,7 @@ app.use("/api/history", historyRoutes);
 
 app.use("/api/contact", contactRoutes);
 app.use("/api/rewards", rewardRoutes);
+app.use("/api/posts", postRoutes);
 
 // ✅ Root route (for Render health check)
 app.get("/", (req, res) => {
