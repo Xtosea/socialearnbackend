@@ -1,5 +1,5 @@
 import express from "express";
-import Task from "../models/Task.js";
+import Task from "../../models/Task.js";
 import User from "../models/User.js";
 import auth from "../middleware/auth.js";
 
