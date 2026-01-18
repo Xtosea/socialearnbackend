@@ -9,11 +9,14 @@ const HistorySchema = new Schema(
       type: String,
       enum: [
         // Core earnings
+        "video-task-fund",
         "video-view",
         "action",
         "daily-login",
         "daily-action",
         "referral-bonus",
+         "social-task",
+        "task-promotion",
 
         // Admin actions
         "admin_add",
