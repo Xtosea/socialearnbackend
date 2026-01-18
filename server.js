@@ -18,6 +18,8 @@ import historyRoutes from "./routes/historyRoutes.js";
 //import "./telegramBot.js";
 import contactRoutes from "./routes/contact.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
+import pointRoutes from "./routes/pointRoutes.js";
+
 
 
 dotenv.config();
@@ -94,6 +96,7 @@ app.use("/api/history", historyRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/points", pointRoutes);
 
 // ✅ Root route (for Render health check)
 app.get("/", (req, res) => {
