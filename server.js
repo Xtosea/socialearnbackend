@@ -48,8 +48,8 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "https://viralvideos.vercel.app",
   "https://viralvideoplus.vercel.app",
-  "https://www.trendwatch.i.ng",
-  "https://trendwatch.i.ng",
+  "https://www.globelynks.com/",
+  "https://globelynks.com/",
 ];
 
 app.use(
